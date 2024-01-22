@@ -36,7 +36,9 @@ if not os.getcwd().endswith('Meningioma'):
     raise Exception('Please run this script from the Menigioma directory')
 
 data_dir = 'data/preprocessing/NURIPS_downloads/Meningiomas_handchecked'
+# data_dir = 'data/preprocessing/output/2_NIFTI'
 dir_of_interest = 'ready_for_preprocessing' # or 'ask_virginia'
+# dir_of_interest = ''
 
 #------------------------------#
 #### 2. LOOP THRU FOR SCANS ####
