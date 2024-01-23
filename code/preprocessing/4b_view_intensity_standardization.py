@@ -1,7 +1,7 @@
 # File: 4b_view_intensity_standardization.py
 # Date: 01/23/2024
 # Author: Lawrence Chillrud <chili@u.northwestern.edu>
-# Description:
+# Description: Inspects the results of intensity standardization on the MRI scans more manually.
 
 #--------------------------#
 ####      CONTENTS      ####
@@ -12,17 +12,13 @@
 #--------------------------#
 ####      N. NOTES      ####
 #--------------------------#
-# This script is meant to
+# This script is meant to view the results of intensity standardization on the MRI scans in 
+# a little more detail than the before and after histograms from script 4a.
+# Plots are meant to be viewed in VS Code's interactive window, and then saved from there.
 #
 # This script relies on the following file(s) as inputs:
-#   *
-#   *
-#
-# This script generates the following file(s) as outputs:
-#   *
-#   *
-#
-# Warnings:
+#   * data/preprocessing/output/4_INTENSITY_STANDARDIZED/*/*_Brainlab/*/*.nii.gz
+#   * data/preprocessing/output/3_N4_BIAS_FIELD_CORRECTED/*/*_Brainlab/*/*.nii.gz
 
 #%%------------------------#
 #### 0. PACKAGE IMPORTS ####
@@ -33,18 +29,43 @@ import numpy as np
 
 setup()
 
-def view_intensity_standardization(data_dir='data/preprocessing/output', scan_type='AX_3D_T1_POST', num_subjects=4, cmap='gray', fig_height=6):
-    """Author: Lawrence Chillrud"""
+def view_intensity_standardization(data_dir='data/preprocessing/output', scan_type='AX_3D_T1_POST', subjects_to_plot=None, num_subjects=4, cmap='gray', fig_height=6):
+    """
+    Author: Lawrence Chillrud
+    
+    This function is meant to view the results of intensity standardization on the MRI scans in
+    a little more detail than the before and after histograms from script 4a.
+    Plots are meant to be viewed in VS Code's interactive window, and then saved from there.
+
+    Parameters
+    ----------
+    data_dir : str, optional
+        The directory where the data is stored. The default is 'data/preprocessing/output'.
+    scan_type : str, optional
+        The scan type to plot. The default is 'AX_3D_T1_POST'.
+    subjects_to_plot : list, optional
+        A list of subjects to plot. The default is None, in which case subjects are chosen randomly.
+    num_subjects : int, optional
+        The number of subjects to plot. The default is 4. If subjects_to_plot is not None, then this
+        parameter is ignored.
+    cmap : str, optional
+        The colormap to use. The default is 'gray'.
+    fig_height : int, optional
+        The height of the figure. The default is 6.
+    """
     before_dir = f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED'
     after_dir = f'{data_dir}/4_INTENSITY_STANDARDIZED'
     subjects = lsdir(after_dir)
     subjects = [s for s in subjects if f'{s}_Brainlab' in lsdir(f'{after_dir}/{s}')]
 
-    # pick randomly num_subjects from subjects so long as they have a scan of type scan_type
-    all_scans = [' '.join(lsdir(f'{after_dir}/{subject}/{subject}_Brainlab')) for subject in subjects]
-    subjects = [s for i, s in enumerate(subjects) if scan_type in all_scans[i]]
-    subjects_to_plot = sorted(np.random.choice(subjects, num_subjects, replace=False))
-    # print("StP: ", subjects_to_plot)
+    if subjects_to_plot is None:
+      # pick randomly num_subjects from subjects so long as they have a scan of type scan_type
+      all_scans = [' '.join(lsdir(f'{after_dir}/{subject}/{subject}_Brainlab')) for subject in subjects]
+      subjects = [s for i, s in enumerate(subjects) if scan_type in all_scans[i]]
+      subjects_to_plot = sorted(np.random.choice(subjects, num_subjects, replace=False))
+      # print("StP: ", subjects_to_plot)
+    else:
+      num_subjects = len(subjects_to_plot)
     
     arr_before = []
     arr_after = []
