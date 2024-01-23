@@ -36,7 +36,9 @@ N4 bias field correction is handled with the [3a_n4_bias_field_correction.py](co
 
 ### 4. Intensity Standardization:
 
-TBD
+Intensity standardization is carried out in script [4a_intensity_standardization.py](code/preprocessing/4a_intensity_standardization.py). The script uses [piecewise linear histogram matching](https://intensity-normalization.readthedocs.io/en/latest/algorithm.html#piecewise-linear-histogram-matching-nyul-udupa) - proposed by [Nyul, Upuda and Zhang](https://ieeexplore.ieee.org/abstract/document/836373?casa_token=DHiN18xB-fIAAAAA:-loy9cE_BOsGlNQ3kH_SOnzM2-za0hJjpsyi2h2w7Kd7ZAYv-70qHxqZVTVvWfmFMRakpWgmOA) - to normalize MRI intensities across subjects in our cohort, only within a common scan type. In this way, we can preserve the different intensities of different modalities while standardizing each subject's scans across the cohort. Affine histogram matching is accomplished via Jacob Reinhold's [intensity-normalization](https://github.com/jcreinhold/intensity-normalization) package. You can see some helpful examples using this package [here](https://intensity-normalization.readthedocs.io/en/latest/usage.html#python-api-for-normalization-methods). 
+
+Script [4b_view_intensity_standardization.py](code/preprocessing/4b_view_intensity_standardization.py) then allows you to view the results of the intensity standardization in a more hands on fashion, beyond the simple before and after histograms that script [4a](code/preprocessing/4a_intensity_standardization.py) spits out.
 
 ### 5. Skull Stripping:
 
