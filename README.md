@@ -36,7 +36,7 @@ The script [2a_convert_dicoms_to_nifti.py](code/preprocessing/2a_convert_dicoms_
 
 N4 bias field correction is handled with the [3a_n4_bias_field_correction.py](code/preprocessing/3a_n4_bias_field_correction.py) script, which makes use of the [ANTsPy](https://github.com/ANTsX/ANTsPy) library for the bias field correction. The preamble documentation in script [3a](code/preprocessing/3a_n4_bias_field_correction.py) contains all the relevant details. 
 
-Script [3b_view_n4_bias_field_correction](code/preprocessing/3b_view_n4_bias_field_correction.py) then allows you to view the results of the bias field correction in detail, slice by slice.
+Script [3b_n4_results_inspection.py](code/preprocessing/3b_n4_results_inspection.py) then allows you to view the results of the bias field correction in detail, slice by slice.
 
 ### 4. Intensity Standardization:
 
@@ -47,8 +47,8 @@ Script [4b_view_intensity_standardization.py](code/preprocessing/4b_view_intensi
 _A warning to investigate:_
 
 a. 103_Brainlab seems to have a problem across the board with all its scans...
-   * scipy/interpolate/_interpolate.py:710: RuntimeWarning: divide by zero encountered in divide
-   * scipy/interpolate/_interpolate.py:713: RuntimeWarning: invalid value encountered in multiply
+   * `scipy/interpolate/_interpolate.py:710: RuntimeWarning: divide by zero encountered in divide`
+   * `scipy/interpolate/_interpolate.py:713: RuntimeWarning: invalid value encountered in multiply`
 
 ### 5. Skull Stripping:
 
