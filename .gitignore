@@ -231,3 +231,6 @@ code/preprocessing/dcm2niix
 
 # pesky mac files
 *.DS_Store
+
+# symbolic links
+MeningiomaNotes.md
