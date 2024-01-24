@@ -28,11 +28,11 @@ from ipywidgets import interact
 
 setup()
 
-def detailed_n4_inspection(data_dir='data/preprocessing/output', subject='6', session='6_Brainlab', scan='12-AX_3D_T1_POST', cmap='nipy_spectral'):
+def detailed_n4_inspection(data_dir='data/preprocessing/output', subject='6', session='6_Brainlab', scan='12-AX_3D_T1_POST', cmap='nipy_spectral', orientation='IAL'):
     """Authors: Roberto Mena, with modifications by Lawrence Chillrud"""
-    arr_before = read_example_mri(f'{data_dir}/2_NIFTI', subject, session, scan, ants=True).numpy()
-    arr_after = read_example_mri(f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED', subject, session, scan, ants=True).numpy()
-    arr_bias_field = image_read(f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED/{subject}/{session}/{scan}/bias_field.nii.gz').numpy()
+    arr_before = read_example_mri(f'{data_dir}/2_NIFTI', subject, session, scan, ants=True, orientation=orientation).numpy()
+    arr_after = read_example_mri(f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED', subject, session, scan, ants=True, orientation=orientation).numpy()
+    arr_bias_field = image_read(f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED/{subject}/{session}/{scan}/bias_field.nii.gz', reorient=orientation).numpy()
 
     assert arr_after.shape == arr_before.shape
     assert arr_bias_field.shape == arr_before.shape
@@ -61,11 +61,11 @@ def detailed_n4_inspection(data_dir='data/preprocessing/output', subject='6', se
   
     interact(fn, SLICE=(0, arr_before.shape[0]-1))
 
-def inspect_n4_correction(data_dir='data/preprocessing/output', subject='6', session='6_Brainlab', scan='12-AX_3D_T1_POST', cmap='nipy_spectral'):
+def inspect_n4_correction(data_dir='data/preprocessing/output', subject='6', session='6_Brainlab', scan='12-AX_3D_T1_POST', cmap='nipy_spectral', orientation='IAL'):
     """Author: Lawrence Chillrud"""
-    before = read_example_mri(f'{data_dir}/2_NIFTI', subject, session, scan, ants=True)
-    after = read_example_mri(f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED', subject, session, scan, ants=True)
-    explore_3D_array_comparison(before.numpy(), after.numpy(), cmap=cmap, title=f'N4 Bias Field Correction: {session}/{scan}')
+    before = read_example_mri(f'{data_dir}/2_NIFTI', subject, session, scan, ants=True, reorient=orientation)
+    after = read_example_mri(f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED', subject, session, scan, ants=True, reorient=orientation)
+    explore_3D_array_comparison(before.numpy(), after.numpy(), cmap=cmap, title=f'N4 Bias Field Correction: {session}/{scan}', reorient=orientation)
 
 detailed_n4_inspection()
 # %%

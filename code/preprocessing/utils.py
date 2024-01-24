@@ -57,7 +57,7 @@ def lsdir(path):
     """Author: Lawrence Chillrud"""
     return sorted([d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))])
 
-def read_example_mri(data_dir='data/preprocessing/output/2_NIFTI', subject='6', session='6_Brainlab', scan='12-AX_3D_T1_POST', ants=True):
+def read_example_mri(data_dir='data/preprocessing/output/2_NIFTI', subject='6', session='6_Brainlab', scan='12-AX_3D_T1_POST', ants=True, orientation='IAL'):
     """
     The function reads an MRI image file using either the ANTs or SimpleITK library, depending on the
     value of the `ants` parameter.
@@ -83,7 +83,7 @@ def read_example_mri(data_dir='data/preprocessing/output/2_NIFTI', subject='6', 
     """
     filepath = f'{data_dir}/{subject}/{session}/{scan}/{session}_{scan}.nii.gz'
     if ants: 
-        return image_read(filepath)
+        return image_read(filepath, reorient=orientation)
     else:
         return sitk.ReadImage(filepath)
 

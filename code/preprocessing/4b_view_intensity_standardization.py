@@ -29,7 +29,7 @@ import numpy as np
 
 setup()
 
-def view_intensity_standardization(data_dir='data/preprocessing/output', scan_type='AX_3D_T1_POST', subjects_to_plot=None, num_subjects=4, cmap='gray', fig_height=6):
+def view_intensity_standardization(data_dir='data/preprocessing/output', scan_type='AX_3D_T1_POST', subjects_to_plot=None, num_subjects=4, cmap='gray', fig_height=6, orientation='IAL'):
     """
     Author: Lawrence Chillrud
     
@@ -74,9 +74,9 @@ def view_intensity_standardization(data_dir='data/preprocessing/output', scan_ty
       scans = lsdir(f'{after_dir}/{subject}/{session}')
       # print("Scans: ", scans)
       scan = [s for s in scans if s.endswith(scan_type)][0]
-      before = read_example_mri(before_dir, subject, session, f'{scan}', ants=True)
+      before = read_example_mri(before_dir, subject, session, f'{scan}', ants=True, orientation=orientation)
       arr_before.append(before.numpy())
-      after = read_example_mri(after_dir, subject, session, f'{scan}', ants=True)
+      after = read_example_mri(after_dir, subject, session, f'{scan}', ants=True, orientation=orientation)
       arr_after.append(after.numpy())
     
     before_min = min([arr.min() for arr in arr_before])
@@ -93,8 +93,8 @@ def view_intensity_standardization(data_dir='data/preprocessing/output', scan_ty
       scans = lsdir(f'{after_dir}/{subject}/{session}')
       # print("Scans: ", scans)
       scan = [s for s in scans if s.endswith(scan_type)][0]
-      before = read_example_mri(before_dir, subject, session, f'{scan}', ants=True)
-      after = read_example_mri(after_dir, subject, session, f'{scan}', ants=True)
+      before = read_example_mri(before_dir, subject, session, f'{scan}', ants=True, orientation=orientation)
+      after = read_example_mri(after_dir, subject, session, f'{scan}', ants=True, orientation=orientation)
 
       slice = before.shape[0] // 2
       axs[0, i].set_title(f'{subject} Before', fontsize=24)
