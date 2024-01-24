@@ -1,6 +1,8 @@
 # Meningioma
 Meningioma biomarkers analysis using radiomics and deep learning
 
+Note: The data used in this project is not publicly available to comply with regulations. Therefore I have not included any data nor any output resulting from data in this repository.
+
 ## Table of Contents
 - [Preprocessing](#preprocessing)
 
@@ -32,13 +34,21 @@ The script [2a_convert_dicoms_to_nifti.py](code/preprocessing/2a_convert_dicoms_
 
 ### 3. N4 Bias Field Correction:
 
-N4 bias field correction is handled with the [3a_n4_bias_field_correction.py](code/preprocessing/3a_n4_bias_field_correction.py) script, which makes use of the [ANTsPy](https://github.com/ANTsX/ANTsPy) library for the bias field correction. The preamble documentation in script [3a](code/preprocessing/3a_n4_bias_field_correction.py) contains all the relevant details.
+N4 bias field correction is handled with the [3a_n4_bias_field_correction.py](code/preprocessing/3a_n4_bias_field_correction.py) script, which makes use of the [ANTsPy](https://github.com/ANTsX/ANTsPy) library for the bias field correction. The preamble documentation in script [3a](code/preprocessing/3a_n4_bias_field_correction.py) contains all the relevant details. 
+
+Script [3b_view_n4_bias_field_correction](code/preprocessing/3b_view_n4_bias_field_correction.py) then allows you to view the results of the bias field correction in detail, slice by slice.
 
 ### 4. Intensity Standardization:
 
 Intensity standardization is carried out in script [4a_intensity_standardization.py](code/preprocessing/4a_intensity_standardization.py). The script uses [piecewise linear histogram matching](https://intensity-normalization.readthedocs.io/en/latest/algorithm.html#piecewise-linear-histogram-matching-nyul-udupa) - proposed by [Nyul, Upuda and Zhang](https://ieeexplore.ieee.org/abstract/document/836373?casa_token=DHiN18xB-fIAAAAA:-loy9cE_BOsGlNQ3kH_SOnzM2-za0hJjpsyi2h2w7Kd7ZAYv-70qHxqZVTVvWfmFMRakpWgmOA) - to normalize MRI intensities across subjects in our cohort, only within a common scan type. In this way, we can preserve the different intensities of different modalities while standardizing each subject's scans across the cohort. Affine histogram matching is accomplished via Jacob Reinhold's [intensity-normalization](https://github.com/jcreinhold/intensity-normalization) package. You can see some helpful examples using this package [here](https://intensity-normalization.readthedocs.io/en/latest/usage.html#python-api-for-normalization-methods). 
 
 Script [4b_view_intensity_standardization.py](code/preprocessing/4b_view_intensity_standardization.py) then allows you to view the results of the intensity standardization in a more hands on fashion, beyond the simple before and after histograms that script [4a](code/preprocessing/4a_intensity_standardization.py) spits out.
+
+_A warning to investigate:_
+
+a. 103_Brainlab seems to have a problem across the board with all its scans...
+   * scipy/interpolate/_interpolate.py:710: RuntimeWarning: divide by zero encountered in divide
+   * scipy/interpolate/_interpolate.py:713: RuntimeWarning: invalid value encountered in multiply
 
 ### 5. Skull Stripping:
 

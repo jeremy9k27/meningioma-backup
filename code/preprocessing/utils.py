@@ -57,45 +57,6 @@ def lsdir(path):
     """Author: Lawrence Chillrud"""
     return sorted([d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))])
 
-def detailed_n4_inspection(data_dir='data/preprocessing/output', subject='6', session='6_Brainlab', scan='12-AX_3D_T1_POST', cmap='nipy_spectral'):
-    """Authors: Roberto Mena, with modifications by Lawrence Chillrud"""
-    arr_before = read_example_mri(f'{data_dir}/2_NIFTI', subject, session, scan, ants=True).numpy()
-    arr_after = read_example_mri(f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED', subject, session, scan, ants=True).numpy()
-    arr_bias_field = image_read(f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED/{subject}/{session}/{scan}/bias_field.nii.gz').numpy()
-
-    assert arr_after.shape == arr_before.shape
-    assert arr_bias_field.shape == arr_before.shape
-
-    def fn(SLICE):
-    
-        global_min = min(arr_before[SLICE, :, :].min(), arr_after[SLICE, :, :].min())
-        global_max = max(arr_before[SLICE, :, :].max(), arr_after[SLICE, :, :].max())
-
-        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, sharex='col', sharey='row', figsize=(10,10))
-        fig.suptitle(f'N4 Bias Field Correction: {session}/{scan}', fontsize=18, y=0.70)
-
-        ax1.set_title('Original', fontsize=15)
-        im1 = ax1.imshow(arr_before[SLICE, :, :], cmap=cmap, vmin=global_min, vmax=global_max)
-        fig.colorbar(im1, ax=ax1, orientation='vertical', fraction=0.046, pad=0.04)
-
-        ax2.set_title('Bias Corrected', fontsize=15)
-        im2 = ax2.imshow(arr_after[SLICE, :, :], cmap=cmap, vmin=global_min, vmax=global_max)
-        fig.colorbar(im2, ax=ax2, orientation='vertical', fraction=0.046, pad=0.04)
-
-        ax3.set_title('Bias Field', fontsize=15)
-        im3 = ax3.imshow(arr_bias_field[SLICE, :, :], cmap='viridis')
-        fig.colorbar(im3, ax=ax3, orientation='vertical', fraction=0.046, pad=0.04)
-
-        plt.tight_layout()
-  
-    interact(fn, SLICE=(0, arr_before.shape[0]-1))
-
-def inspect_n4_correction(data_dir='data/preprocessing/output', subject='6', session='6_Brainlab', scan='12-AX_3D_T1_POST', cmap='nipy_spectral'):
-    """Author: Lawrence Chillrud"""
-    before = read_example_mri(f'{data_dir}/2_NIFTI', subject, session, scan, ants=True)
-    after = read_example_mri(f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED', subject, session, scan, ants=True)
-    explore_3D_array_comparison(before.numpy(), after.numpy(), cmap=cmap, title=f'N4 Bias Field Correction: {session}/{scan}')
-
 def read_example_mri(data_dir='data/preprocessing/output/2_NIFTI', subject='6', session='6_Brainlab', scan='12-AX_3D_T1_POST', ants=True):
     """
     The function reads an MRI image file using either the ANTs or SimpleITK library, depending on the
