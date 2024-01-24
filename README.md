@@ -52,7 +52,18 @@ a. 103_Brainlab seems to have a problem across the board with all its scans...
 
 ### 5. Skull Stripping:
 
-TBD
+For the skull stripping, we are going to try out FreeSurfer's [SynthStrip](https://surfer.nmr.mgh.harvard.edu/docs/synthstrip/) tool first, then consult our radiologists to see what they think. To use SynthStrip, we need to first install [Docker](https://docs.docker.com/get-docker/) (and open it once). Then we can download the SynthStrip docker executable with:
+
+`curl -O https://raw.githubusercontent.com/freesurfer/freesurfer/dev/mri_synthstrip/synthstrip-docker && chmod +x synthstrip-docker`
+
+Make sure the executable is placed in the [code/preprocessing](code/preprocessing/) folder for the [5a](code/preprocessing/5a_skullstrip.py) script to run correctly. Then run it once to download the default model (this only has to be done once) with: 
+
+```
+cd code/preprocessing # if you're not already in this folder
+./synthstrip-docker --help
+```
+
+The script [5a_skullstrip.py](code/preprocessing/5a_skullstrip.py) then runs the SynthStrip tool on all the scans to extract the brain tissue. The results then need to be checked to ensure the brain tissues were properly extracted from each skull (we want to be wary of losing skull that actually has some meningioma invasion in it). 
 
 ### 6. Registration:
 
