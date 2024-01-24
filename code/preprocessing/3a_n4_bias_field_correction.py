@@ -52,16 +52,12 @@ import shutil
 import ants
 from datetime import datetime
 from tqdm import tqdm
-
-def lsdir(path):
-    return sorted([d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))])
+from utils import lsdir, setup
 
 #---------------------------#
 #### 1. SET UP FILEPATHS ####
 #---------------------------#
-if not os.getcwd().endswith('Meningioma'): os.chdir('../..')
-if not os.getcwd().endswith('Meningioma'): 
-    raise Exception('Please run this script from the Menigioma directory')
+setup()
 
 data_dir = 'data/preprocessing/output/2_NIFTI'
 output_dir = 'data/preprocessing/output/3_N4_BIAS_FIELD_CORRECTED'
@@ -78,7 +74,6 @@ os.system(f"echo '\n{bar}\n' >> {log_file}")
 os.system(f"echo 'Running script 3a_n4_bias_field_correction.py at {date}\n' >> {log_file}")
 print(f"Logging output to {log_file}")
 
-# wrap this for loop with a progress bar using tqdm
 for subject in tqdm(lsdir(data_dir), desc="Subjects"):
     for session in tqdm(lsdir(f'{data_dir}/{subject}'), desc="Sessions", leave=False):
         for scan in tqdm(lsdir(f'{data_dir}/{subject}/{session}'), desc="Scans", leave=False):

@@ -31,16 +31,12 @@
 import os
 from tqdm import tqdm
 from datetime import datetime
-
-def lsdir(path):
-    return sorted([d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))])
+from utils import lsdir, setup
 
 #---------------------------#
 #### 1. SET UP FILEPATHS ####
 #---------------------------#
-if not os.getcwd().endswith('Meningioma'): os.chdir('../..')
-if not os.getcwd().endswith('Meningioma'): 
-    raise Exception('Please run this script from the Menigioma directory')
+setup()
 
 data_dir = 'data/preprocessing/NURIPS_downloads/Meningiomas_handchecked'
 dcm = 'resources/DICOM'
@@ -59,7 +55,6 @@ os.system(f"echo '\n{bar}\n' >> {log_file}")
 os.system(f"echo 'Running script 2a_convert_dicoms_to_nifti.py at {date}\n' >> {log_file}")
 print(f"Logging output to {log_file}")
 
-# wrap this for loop with a progress bar using tqdm
 for subject in tqdm(lsdir(data_dir), desc="Subjects"):
     for session in tqdm(lsdir(f'{data_dir}/{subject}'), desc="Sessions", leave=False):
         for scan in tqdm(lsdir(f'{data_dir}/{subject}/{session}/ready_for_preprocessing'), desc="Scans", leave=False):

@@ -24,11 +24,9 @@
 #---------------------------#
 #### 1. SET UP FILEPATHS ####
 #---------------------------#
-import os
+from utils import setup
 
-if not os.getcwd().endswith('Meningioma'): os.chdir('../..')
-if not os.getcwd().endswith('Meningioma'): 
-    raise Exception('Please run this script from the Menigioma directory')
+setup()
 
 #-------------------------#
 #### 2. PARSE LOG FILE ####

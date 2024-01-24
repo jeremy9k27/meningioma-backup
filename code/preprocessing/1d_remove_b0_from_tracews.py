@@ -32,16 +32,12 @@
 #--------------------------#
 import os
 import pydicom
-
-def lsdir(path):
-    return sorted([d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))])
+from utils import setup, lsdir
 
 #%%-------------------------#
 #### 1. SET UP FILEPATHS ####
 #---------------------------#
-if not os.getcwd().endswith('Meningioma'): os.chdir('../..')
-if not os.getcwd().endswith('Meningioma'): 
-    raise Exception('Please run this script from the Menigioma directory')
+setup()
 
 data_dir = 'data/preprocessing/NURIPS_downloads/Meningiomas_handchecked'
 alt_dir = 'data/preprocessing/NURIPS_downloads/Meningiomas'
