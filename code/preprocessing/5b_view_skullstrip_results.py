@@ -1,33 +1,19 @@
 # File: 5b_view_skullstrip_results.py
 # Date: 01/24/2024
 # Author: Lawrence Chillrud <chili@u.northwestern.edu>
-# Description:
-
-#--------------------------#
-####      CONTENTS      ####
-#--------------------------#
-# N. Notes
-# 0. Package imports
+# Description: Makes manually viewing the results of the skull stripper easy, in order to validate the skull stripping step.
 
 #--------------------------#
 ####      N. NOTES      ####
 #--------------------------#
-# This script is meant to
-# RAS or LPI?
+# This script is meant to make manually viewing the results of the skull stripper easy, in order to validate the skull stripping step.
+#
 # This script relies on the following file(s) as inputs:
-#   *
-#   *
-#
-# This script generates the following file(s) as outputs:
-#   *
-#   *
-#
-# Warnings:
+#   * data/preprocessing/output/5_SKULLSTRIPPED/*/*_Brainlab/*/*.nii.gz
+#   * data/preprocessing/output/5_SKULLSTRIPPED/*/*_Brainlab/*/brain_mask.nii.gz
 
-#%%------------------------#
-#### 0. PACKAGE IMPORTS ####
-#--------------------------#
-from utils import setup, lsdir, read_example_mri, rescale_linear
+#%%
+from utils import setup, lsdir, read_example_mri, rescale_linear, inspect_contours
 import matplotlib.pyplot as plt
 import numpy as np
 from ants import image_read
@@ -52,15 +38,12 @@ def view_skullstrip_results(data_dir='data/preprocessing/output', scan_type='AX_
     else:
       num_subjects = len(subjects_to_plot)
     
-    print("Subjects to plot: ", subjects_to_plot)
-
     fig, axs = plt.subplots(num_subjects, 4, figsize=(fig_height*3, fig_height*num_subjects))
     fig.suptitle(f'{scan_type}: Skull stripping Before vs. After', fontsize=36, y=1)
     for i, subject in enumerate(subjects_to_plot):
         session = f'{subject}_Brainlab'
         scans = lsdir(f'{after_dir}/{subject}/{session}')
         scan = [s for s in scans if s.endswith(scan_type)][0]
-        print(f"Subject {i + 1} / {num_subjects}: ", subject)
         before = read_example_mri(before_dir, subject, session, scan, ants=True, orientation=orientation).numpy()
         after = read_example_mri(after_dir, subject, session, scan, ants=True, orientation=orientation).numpy()
         mask = image_read(f'{after_dir}/{subject}/{session}/{scan}/brain_mask.nii.gz', reorient=orientation).numpy()
@@ -96,4 +79,5 @@ def view_skullstrip_results(data_dir='data/preprocessing/output', scan_type='AX_
     plt.show()
 
 view_skullstrip_results()
+inspect_contours()
 # %%

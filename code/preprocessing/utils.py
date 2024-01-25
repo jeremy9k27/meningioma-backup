@@ -189,7 +189,13 @@ def rescale_linear(array: np.ndarray, new_min: int, new_max: int):
   return m * array + b
 
 
-def explore_3D_array_with_mask_contour(arr: np.ndarray, mask: np.ndarray, thickness: int = 1):
+def inspect_contours(data_dir='data/preprocessing/output', subject='6', session='6_Brainlab', scan='12-AX_3D_T1_POST', cmap='gray', orientation='RSA'):
+  """Author: Lawrence Chillrud"""
+  image = read_example_mri(data_dir=f'{data_dir}/4_INTENSITY_STANDARDIZED', subject=subject, session=session, scan=scan, ants=True, orientation=orientation).numpy()
+  mask = image_read(f'{data_dir}/5_SKULLSTRIPPED/{subject}/{session}/{scan}/brain_mask.nii.gz', reorient=orientation).numpy()
+  explore_3D_array_with_mask_contour(image, mask, thickness=1, title=f'{session}/{scan}')
+
+def explore_3D_array_with_mask_contour(arr: np.ndarray, mask: np.ndarray, thickness: int = 1, title: str = 'MRI Image with Brain Mask Contours'):
   """
   Given a 3D array with shape (Z,X,Y) This function will create an interactive
   widget to check out all the 2D arrays with shape (X,Y) inside the 3D array. The binary
@@ -214,5 +220,6 @@ def explore_3D_array_with_mask_contour(arr: np.ndarray, mask: np.ndarray, thickn
 
     plt.figure(figsize=(7,7))
     plt.imshow(arr_with_contours)
+    plt.title(title)
 
   interact(fn, SLICE=(0, arr.shape[0]-1))

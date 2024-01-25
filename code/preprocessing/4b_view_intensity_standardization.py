@@ -4,12 +4,6 @@
 # Description: Inspects the results of intensity standardization on the MRI scans more manually.
 
 #--------------------------#
-####      CONTENTS      ####
-#--------------------------#
-# N. Notes
-# 0. Package imports
-
-#--------------------------#
 ####      N. NOTES      ####
 #--------------------------#
 # This script is meant to view the results of intensity standardization on the MRI scans in 
@@ -20,9 +14,7 @@
 #   * data/preprocessing/output/4_INTENSITY_STANDARDIZED/*/*_Brainlab/*/*.nii.gz
 #   * data/preprocessing/output/3_N4_BIAS_FIELD_CORRECTED/*/*_Brainlab/*/*.nii.gz
 
-#%%------------------------#
-#### 0. PACKAGE IMPORTS ####
-#--------------------------#
+#%%
 from utils import setup, lsdir, read_example_mri, plot_histogram
 import matplotlib.pyplot as plt
 import numpy as np

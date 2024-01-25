@@ -4,12 +4,6 @@
 # Description: Inspects / visualizes the results of N4 bias field correction on the MRI scans manually.
 
 #--------------------------#
-####      CONTENTS      ####
-#--------------------------#
-# N. Notes
-# 0. Package imports
-
-#--------------------------#
 ####      N. NOTES      ####
 #--------------------------#
 # This script is meant to inspects / visualize the results of N4 bias field correction on the MRI scans manually.
@@ -19,9 +13,7 @@
 #   * data/preprocessing/output/2_NIFTI/*/*_Brainlab/*/*.nii.gz
 #   * data/preprocessing/output/3_N4_BIAS_FIELD_CORRECTED/*/*_Brainlab/*/*.nii.gz
 
-#%%------------------------#
-#### 0. PACKAGE IMPORTS ####
-#--------------------------#
+#%%
 import matplotlib.pyplot as plt
 from utils import setup, read_example_mri, image_read, explore_3D_array_comparison
 from ipywidgets import interact
