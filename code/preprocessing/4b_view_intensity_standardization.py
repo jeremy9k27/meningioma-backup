@@ -63,7 +63,6 @@ def view_intensity_standardization(data_dir='data/preprocessing/output', scan_ty
       all_scans = [' '.join(lsdir(f'{after_dir}/{subject}/{subject}_Brainlab')) for subject in subjects]
       subjects = [s for i, s in enumerate(subjects) if scan_type in all_scans[i]]
       subjects_to_plot = sorted(np.random.choice(subjects, num_subjects, replace=False))
-      # print("StP: ", subjects_to_plot)
     else:
       num_subjects = len(subjects_to_plot)
     
@@ -72,11 +71,10 @@ def view_intensity_standardization(data_dir='data/preprocessing/output', scan_ty
     for i, subject in enumerate(subjects_to_plot):
       session = f'{subject}_Brainlab'
       scans = lsdir(f'{after_dir}/{subject}/{session}')
-      # print("Scans: ", scans)
       scan = [s for s in scans if s.endswith(scan_type)][0]
-      before = read_example_mri(before_dir, subject, session, f'{scan}', ants=True, orientation=orientation)
+      before = read_example_mri(before_dir, subject, session, scan, ants=True, orientation=orientation)
       arr_before.append(before.numpy())
-      after = read_example_mri(after_dir, subject, session, f'{scan}', ants=True, orientation=orientation)
+      after = read_example_mri(after_dir, subject, session, scan, ants=True, orientation=orientation)
       arr_after.append(after.numpy())
     
     before_min = min([arr.min() for arr in arr_before])
@@ -91,10 +89,9 @@ def view_intensity_standardization(data_dir='data/preprocessing/output', scan_ty
     for i, subject in enumerate(subjects_to_plot):
       session = f'{subject}_Brainlab'
       scans = lsdir(f'{after_dir}/{subject}/{session}')
-      # print("Scans: ", scans)
       scan = [s for s in scans if s.endswith(scan_type)][0]
-      before = read_example_mri(before_dir, subject, session, f'{scan}', ants=True, orientation=orientation)
-      after = read_example_mri(after_dir, subject, session, f'{scan}', ants=True, orientation=orientation)
+      before = read_example_mri(before_dir, subject, session, scan, ants=True, orientation=orientation)
+      after = read_example_mri(after_dir, subject, session, scan, ants=True, orientation=orientation)
 
       slice = before.shape[0] // 2
       axs[0, i].set_title(f'{subject} Before', fontsize=24)
