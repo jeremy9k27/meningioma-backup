@@ -53,16 +53,16 @@ begin_time = time.time()
 
 skull_stripper = './code/preprocessing/synthstrip-docker'
 
-data_dir = 'data/preprocessing/output/4_INTENSITY_STANDARDIZED'
-output_dir = 'data/preprocessing/output/5_SKULLSTRIPPED'
-log_file = os.path.join(output_dir, '5a_log.txt')
+data_dir = 'data/preprocessing/output/3_N4_BIAS_FIELD_CORRECTED' # 'data/preprocessing/output/4_INTENSITY_STANDARDIZED'
+output_dir = 'data/preprocessing/output/4ALT_SKULLSTRIPPED' # 'data/preprocessing/output/5_SKULLSTRIPPED'
+log_file = os.path.join(output_dir, '4ALT_log.txt') # '5a_log.txt'
 
 if not os.path.exists(output_dir): os.makedirs(output_dir)
 
 date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 bar = '-' * 80
 os.system(f"echo '\n{bar}\n' >> {log_file}")
-os.system(f"echo 'Running script 5a_skullstrip.py at {date}\n' >> {log_file}")
+os.system(f"echo 'Running ALT script 5a_skullstrip.py at {date}\n' >> {log_file}") # remove ALT
 print(f"Logging output to {log_file}")
 
 #---------------------------#
@@ -86,6 +86,6 @@ for subject in tqdm(lsdir(data_dir), desc="Subjects"):
 
 time_elapsed = time.time() - begin_time
 date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-os.system(f"echo 'Completed 5a_skullstrip.py at {date}\n' >> {log_file}")
+os.system(f"echo 'Completed ALT 5a_skullstrip.py at {date}\n' >> {log_file}") # remove ALT
 os.system(f"echo 'Total elapsed time: {time_elapsed}' >> {log_file}")
 os.system(f"echo '\n{bar}\n' >> {log_file}")
