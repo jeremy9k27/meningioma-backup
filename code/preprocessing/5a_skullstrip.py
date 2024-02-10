@@ -53,27 +53,29 @@ begin_time = time.time()
 
 skull_stripper = './code/preprocessing/synthstrip-docker'
 
-data_dir = 'data/preprocessing/output/3_N4_BIAS_FIELD_CORRECTED' # 'data/preprocessing/output/4_INTENSITY_STANDARDIZED'
-output_dir = 'data/preprocessing/output/4ALT_SKULLSTRIPPED' # 'data/preprocessing/output/5_SKULLSTRIPPED'
-log_file = os.path.join(output_dir, '4ALT_log.txt') # '5a_log.txt'
+data_dir = 'data/preprocessing/output/4c_HISTOGRAM_EQUALIZED'
+output_dir = 'data/preprocessing/output/5a_SKULLSTRIPPED'
+log_file = os.path.join(output_dir, '5a_log.txt')
 
 if not os.path.exists(output_dir): os.makedirs(output_dir)
 
 date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 bar = '-' * 80
 os.system(f"echo '\n{bar}\n' >> {log_file}")
-os.system(f"echo 'Running ALT script 5a_skullstrip.py at {date}\n' >> {log_file}") # remove ALT
+os.system(f"echo 'Running script 5a_skullstrip.py at {date}\n' >> {log_file}")
 print(f"Logging output to {log_file}")
 
 #---------------------------#
 #### 2. SKULLSTRIP SCANS ####
 #---------------------------#
-for subject in tqdm(lsdir(data_dir), desc="Subjects"):
+subjects = lsdir(data_dir)
+scans_to_skullstrip = ['SAG_3D_FLAIR'] # LGC: REMOVE THIS LINE WHEN READY FOR FULL SCALE!
+for subject in tqdm(subjects, desc="Subjects"):
     for session in tqdm(lsdir(f'{data_dir}/{subject}'), desc="Sessions", leave=False):
         for scan in tqdm(lsdir(f'{data_dir}/{subject}/{session}'), desc="Scans", leave=False):
             cur_input_dir = f'{data_dir}/{subject}/{session}/{scan}'
             cur_output_dir = f'{output_dir}/{subject}/{session}/{scan}'
-            if not os.path.exists(f'{cur_output_dir}/{session}_{scan}.nii.gz'): 
+            if not os.path.exists(f'{cur_output_dir}/{session}_{scan}.nii.gz') and scan.split('-')[-1] in scans_to_skullstrip: 
                 # file wrangling and logging
                 if not os.path.exists(cur_output_dir): os.makedirs(cur_output_dir)
                 os.system(f"echo 'Using SynthStrip to skull strip {session}/{scan}' >> {log_file}")
@@ -86,6 +88,6 @@ for subject in tqdm(lsdir(data_dir), desc="Subjects"):
 
 time_elapsed = time.time() - begin_time
 date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-os.system(f"echo 'Completed ALT 5a_skullstrip.py at {date}\n' >> {log_file}") # remove ALT
+os.system(f"echo 'Completed 5a_skullstrip.py at {date}\n' >> {log_file}")
 os.system(f"echo 'Total elapsed time: {time_elapsed}' >> {log_file}")
 os.system(f"echo '\n{bar}\n' >> {log_file}")

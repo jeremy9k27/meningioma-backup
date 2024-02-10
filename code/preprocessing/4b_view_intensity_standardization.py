@@ -45,8 +45,8 @@ def view_intensity_standardization(data_dir='data/preprocessing/output', scan_ty
     fig_height : int, optional
         The height of the figure. The default is 6.
     """
-    before_dir = f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED' # f'{data_dir}/4ALT_SKULLSTRIPPED' # f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED'
-    after_dir = f'{data_dir}/4c_HISTOGRAM_EQUALIZED' # f'{data_dir}/4_INTENSITY_STANDARDIZED'
+    before_dir = f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED'
+    after_dir = f'{data_dir}/4c_HISTOGRAM_EQUALIZED'
     subjects = lsdir(after_dir)
     subjects = [s for s in subjects if f'{s}_Brainlab' in lsdir(f'{after_dir}/{s}')]
 
@@ -117,7 +117,7 @@ def view_intensity_standardization(data_dir='data/preprocessing/output', scan_ty
     plt.tight_layout()
     plt.show()
 
-# view_intensity_standardization()
+view_intensity_standardization()
 
 # %% 
 for st in ['AX_3D_T1_POST', 'AX_3D_T1_PRE', 'AX_ADC', 'AX_DIFFUSION', 'SAG_3D_FLAIR', 'AX_SWI', 'SAG_3D_T2']:

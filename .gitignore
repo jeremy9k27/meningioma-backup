@@ -210,6 +210,7 @@ po/*~
 rsconnect/
 
 # VSCode items
+.vscode/
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json

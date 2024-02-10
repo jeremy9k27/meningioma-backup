@@ -9,6 +9,8 @@
 #--------------------------#
 # N. Notes
 # 0. Package imports
+# 1. File wrangling & reading
+# 2. Equalize images
 
 #--------------------------#
 ####      N. NOTES      ####
@@ -39,6 +41,7 @@ from pprint import pprint
 import nibabel as nib
 import logging
 from skimage import exposure
+from scipy.ndimage import gaussian_filter
 
 setup()
 begin_time = time.time()
@@ -64,6 +67,11 @@ bar = '=' * 160
 os.system(f"echo '\n{bar}' >> {log_file}")
 os.system(f"echo '{bar}' >> {log_file}")
 os.system(f"echo '\nRunning script 4c_histogram_equalization.py at {date}\n' >> {log_file}")
+
+gaussian_blur = False
+sigma = (0.5,)
+if gaussian_blur:
+    os.system(f"echo 'Adding Gaussian blur with sigma = {sigma} for each dimension before histogram equalization\n' >> {log_file}")
 
 logger = logging.getLogger()
 logger.setLevel(logging.WARNING)
@@ -100,9 +108,9 @@ os.system(f"echo 'The following scan types (counts) will be equalized using hist
 pprint(scan_types_dict, stream=open(log_file, 'a'))
 os.system(f"echo '' >> {log_file}")
 
-#%%-------------------------#
-#### 2. NORMALIZE IMAGES ####
-#---------------------------#
+#%%------------------------#
+#### 2. EQUALIZE IMAGES ####
+#--------------------------#
 scan_types_to_normalize = scan_types_dict.keys()
 for i, scan_type in enumerate(scan_types_to_normalize):
     cur_start_time = time.time()
@@ -120,7 +128,12 @@ for i, scan_type in enumerate(scan_types_to_normalize):
     arr_equalized = []
     for image, output_fp, aff_mat in tqdm(zip(arr_images, cur_output_filepaths, affine_mats), desc=f"Equalizing and saving {scan_type} images", leave=True, total=len(cur_output_filepaths)):
         os.system(f"echo 'Equalizing and saving {output_fp.split('/')[-1]}' >> {log_file}")
-        equalized_im = exposure.equalize_hist(image, mask=image > image.mean()) # or exposure.equalize_adapthist(image, kernel_size=???, clip_limit=???)
+
+        im = image
+        if gaussian_blur:
+            im = gaussian_filter(image, sigma=sigma*len(image.shape))
+        
+        equalized_im = exposure.equalize_hist(im, mask=im > im.mean()) # or exposure.equalize_adapthist(image, kernel_size=???, clip_limit=???)
         arr_equalized.append(equalized_im)
         nib.save(nib.Nifti1Image(equalized_im, affine=aff_mat), output_fp)
     
@@ -150,7 +163,7 @@ for i, scan_type in enumerate(scan_types_to_normalize):
 date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 total_elapsed_time = str(timedelta(seconds=time.time() - begin_time))
 
-os.system(f"echo 'Completed 4c_histogram_equalization.py at {date}' >> {log_file}") # remove ALT
+os.system(f"echo 'Completed 4c_histogram_equalization.py at {date}' >> {log_file}")
 os.system(f"echo 'Total elapsed time: {total_elapsed_time}' >> {log_file}")
 os.system(f"echo '\n{bar}' >> {log_file}")
 os.system(f"echo '{bar}' >> {log_file}")

@@ -66,5 +66,3 @@ for subject in tqdm(lsdir(data_dir), desc="Subjects"):
                 convert_cmd = f"{dcm2niix} -z y -9 -d -v 0 -o {cur_output_dir} -f {session}_{scan} {cur_input_dir} >> {log_file}" # -f %d
                 os.system(log_cmd)
                 os.system(convert_cmd)
-            else:
-                print(f'Already converted {session}/{scan}, skipping it...')

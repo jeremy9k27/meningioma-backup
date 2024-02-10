@@ -92,9 +92,7 @@ for subject in tqdm(lsdir(data_dir), desc="Subjects"):
                 n4_field = ants.n4_bias_field_correction(image, return_bias_field=True)
                 ants.image_write(image_n4, f'{cur_output_dir}/{session}_{scan}.nii.gz')
                 ants.image_write(n4_field, f'{cur_output_dir}/bias_field.nii.gz')
-            else:
-                print(f'Already bias corrected {session}/{scan}, skipping it...')
-
+            
 date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 os.system(f"echo 'Completed 3a_n4_bias_field_correction.py at {date}\n' >> {log_file}")
 os.system(f"echo '\n{bar}\n' >> {log_file}")
