@@ -83,8 +83,6 @@ for subject in tqdm(subjects, desc="Subjects"):
 
                 # skull strip image and save
                 os.system(f"{skull_stripper} -i {cur_input_dir}/{session}_{scan}.nii.gz -o {cur_output_dir}/{session}_{scan}.nii.gz -m {cur_output_dir}/brain_mask.nii.gz >> {log_file}")
-            else:
-                os.system(f"echo 'Skull stripping already completed for {session}/{scan}' >> {log_file}")
 
 time_elapsed = time.time() - begin_time
 date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
