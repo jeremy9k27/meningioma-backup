@@ -77,7 +77,6 @@ mni_template = ants.image_read(rigid_template_path, reorient='IAL')
 #### 2. REGISTRATION ####
 #-----------------------#
 subjects = lsdir(data_dir)
-subjects = ['111', '115']
 for subject in tqdm(subjects, desc="Subjects"):
     for session in tqdm(lsdir(f'{data_dir}/{subject}'), desc="Sessions", leave=False):
 
