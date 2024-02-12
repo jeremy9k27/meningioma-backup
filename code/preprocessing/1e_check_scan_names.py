@@ -42,6 +42,8 @@ pprint(scan_counts)
 has_pre = 0
 has_flair = 0
 has_neither = 0
+
+has_adc = 0
 scan_of_interest = 'AX_DIFFUSION'
 n = 0
 for subject in lsdir(data_dir):
@@ -57,9 +59,12 @@ for subject in lsdir(data_dir):
             if 'AX_3D_T1_PRE' not in scan_types and 'SAG_3D_FLAIR' not in scan_types:
                 has_neither += 1
                 print(sorted(scan_types))
+            if 'AX_ADC' in scan_types:
+                has_adc += 1
 
 print(f'scan_of_interest (n = {n}):', scan_of_interest)
 print(f'has_pre: {has_pre}')
 print(f'has_flair: {has_flair}')
 print(f'has_neither: {has_neither}')
+print(f'has_adc: {has_adc}')
 # %%
