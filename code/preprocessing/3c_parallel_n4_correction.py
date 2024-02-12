@@ -79,8 +79,8 @@ def n4_correct_subject(subject):
     log_file = os.path.join(log_dir, f'{subject}-log.txt')
     logging.basicConfig(filename=log_file, level=logging.INFO, format='%(message)s')
 
-    for session in tqdm(lsdir(f'{data_dir}/{subject}'), desc="Sessions", leave=False):
-        for scan in tqdm(lsdir(f'{data_dir}/{subject}/{session}'), desc="Scans", leave=False):
+    for session in lsdir(f'{data_dir}/{subject}'):
+        for scan in lsdir(f'{data_dir}/{subject}/{session}'):
             cur_input_dir = f'{data_dir}/{subject}/{session}/{scan}'
             cur_output_dir = f'{output_dir}/{subject}/{session}/{scan}'
             if not os.path.exists(cur_output_dir): 
