@@ -46,8 +46,8 @@ from tqdm import tqdm
 setup()
 
 skullstrip_dir = 'data/preprocessing/output/4_SKULLSTRIPPED' # set this to None if you don't want to use skullstripped intermediary images for SWI and DWI scans
-data_dir = 'data/preprocessing/output/5_ZSCORE_NORMALIZED'
-output_dir = 'data/preprocessing/output/6_REGISTERED'
+data_dir = 'data/preprocessing/output/5b_ZSCORE_NORMALIZED'
+output_dir = 'data/preprocessing/output/6b_REGISTERED'
 log_dir = f'{output_dir}/logfiles'
 
 if not os.path.exists(output_dir): os.makedirs(output_dir)
@@ -63,6 +63,10 @@ if not os.path.exists(mni_template_path):
     os.system(f"cd {output_dir} && wget {mni_template} && unzip {mni_template_zip} && rm {mni_template_zip} && cd ../../../../")
 
 mni_template = ants.image_read(mni_template_path, reorient='IAL')
+
+def save_transforms(tx, output_path):
+    for i, t in enumerate(tx):
+        t.to_file(f'{output_path}_transform_tx_{i}.txt')
 
 #-----------------------#
 #### 2. REGISTRATION ####
@@ -129,6 +133,7 @@ def register_subject(subject):
         swi_intermediary_transform = None
         dwi_intermediary_transform = None
 
+        # This is the first step of registration: register a subject's AX 3D T1 POST image to the MNI template
         type_of_transform = 'Affine'
         logging.info(f"\tPerforming {type_of_transform.lower()} registration to {mni_template_path.split('/')[-1]} for scan {intra_subject_template}")
         mni_transform = ants.registration(
@@ -142,6 +147,7 @@ def register_subject(subject):
         if not os.path.exists(cur_output_dir): os.makedirs(cur_output_dir)
         mni_transform['warpedmovout'].to_file(f'{cur_output_dir}/{session}_{intra_subject_template_scan_path}.nii.gz')
         shutil.copy(f'{data_dir}/{subject}/{session}/{intra_subject_template_scan_path}/{session}_{intra_subject_template_scan_path}.json', f'{cur_output_dir}/{session}_{intra_subject_template_scan_path}.json')
+        save_transforms(mni_transform['fwdtransforms'], f'{cur_output_dir}/{session}_{intra_subject_template_scan_path}_{type_of_transform}_to_MNI')
 
         logging.info(f"\tAffine transforming the pre-requisite scans {pre_req_scans} to {intra_subject_template_scan_path}, then propogating affine registration ({intra_subject_template_scan_path} -> {mni_template_path.split('/')[-1]}) onto each scan")
         for scan in pre_req_scans:
@@ -164,6 +170,7 @@ def register_subject(subject):
                         verbose=False
                     )
                     intra_subject_transform['warpedmovout'].to_file(f'{cur_output_dir}/{session}_{scan}_{type_of_transform}_registration_to_{intra_subject_template}.nii.gz')
+                    save_transforms(intra_subject_transform['fwdtransforms'], f'{cur_output_dir}/{session}_{scan}_{type_of_transform}_to_{intra_subject_template}')
                     if scan_type == swi_intermediary: swi_intermediary_transform = intra_subject_transform['fwdtransforms']
                     if scan_type == dwi_intermediary: dwi_intermediary_transform = intra_subject_transform['fwdtransforms']
 
@@ -232,6 +239,7 @@ def register_subject(subject):
                                 verbose=False
                             )
                             intra_subject_int_transform['warpedmovout'].to_file(f'{cur_output_dir}/{session}_{scan}_{type_of_transform}_registration_to_{intermediary}.nii.gz')
+                            save_transforms(intra_subject_int_transform['fwdtransforms'], f'{cur_output_dir}/{session}_{scan}_{type_of_transform}_to_{intermediary}')
                             if scan_type == 'AX_DIFFUSION': dwi_transform = intra_subject_int_transform['fwdtransforms']
                         else:
                             intra_subject_int_transform = ants.apply_transforms(
@@ -240,7 +248,7 @@ def register_subject(subject):
                                 transformlist=dwi_transform,
                                 verbose=False
                             )
-
+                            intra_subject_int_transform.to_file(f'{cur_output_dir}/{session}_{scan}_{type_of_transform}_registration_to_{intermediary}.nii.gz')
                         logging.info(f"\t\t\tSubstep 2/3: Propogating the affine transform from {intermediary_path} -> {intra_subject_template_scan_path} onto {scan}")
                         if scan_type != 'AX_ADC': intra_subject_int_transform = intra_subject_int_transform['warpedmovout']
 
