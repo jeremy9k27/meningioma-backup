@@ -49,6 +49,7 @@ skullstrip_dir = 'data/preprocessing/output/4_SKULLSTRIPPED' # set this to None 
 data_dir = 'data/preprocessing/output/5b_ZSCORE_NORMALIZED'
 output_dir = 'data/preprocessing/output/6b_REGISTERED'
 log_dir = f'{output_dir}/logfiles'
+num_workers = 1
 
 if not os.path.exists(output_dir): os.makedirs(output_dir)
 if not os.path.exists(log_dir): os.makedirs(log_dir)
@@ -66,7 +67,8 @@ mni_template = ants.image_read(mni_template_path, reorient='IAL')
 
 def save_transforms(tx, output_path):
     for i, t in enumerate(tx):
-        t.to_file(f'{output_path}_transform_tx_{i}.txt')
+        suffix = t.split('.')[-1]
+        shutil.copy(t, f'{output_path}_transform_tx_{i}.{suffix}')
 
 #-----------------------#
 #### 2. REGISTRATION ####
@@ -301,7 +303,7 @@ def main():
     subjects = lsdir(data_dir)
     # reverse order of subjects
     subjects = subjects[::-1]
-    with ProcessPoolExecutor(max_workers=4) as executor:
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
         # Create a list of futures
         futures = [executor.submit(register_subject, subject) for subject in subjects]
         
