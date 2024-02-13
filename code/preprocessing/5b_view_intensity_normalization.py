@@ -1,18 +1,18 @@
-# File: 4b_view_intensity_standardization.py
+# File: 5b_view_intensity_normalization.py
 # Date: 01/23/2024
 # Author: Lawrence Chillrud <chili@u.northwestern.edu>
-# Description: Inspects the results of intensity standardization on the MRI scans more manually.
+# Description: Inspects the results of intensity normalization on the MRI scans more manually.
 
 #--------------------------#
 ####      N. NOTES      ####
 #--------------------------#
-# This script is meant to view the results of intensity standardization on the MRI scans in 
+# This script is meant to view the results of intensity normalization on the MRI scans in 
 # a little more detail than the before and after histograms from script 4a.
 # Plots are meant to be viewed in VS Code's interactive window, and then saved from there.
 #
 # This script relies on the following file(s) as inputs:
-#   * data/preprocessing/output/4_INTENSITY_STANDARDIZED/*/*_Brainlab/*/*.nii.gz
 #   * data/preprocessing/output/3_N4_BIAS_FIELD_CORRECTED/*/*_Brainlab/*/*.nii.gz
+#   * data/preprocessing/output/5_ZSCORE_NORMALIZED/*/*_Brainlab/*/*.nii.gz
 
 #%%
 from utils import setup, lsdir, read_example_mri, plot_histogram
@@ -21,7 +21,7 @@ import numpy as np
 
 setup()
 
-def view_intensity_standardization(data_dir='data/preprocessing/output', scan_type='AX_3D_T1_POST', subjects_to_plot=None, num_subjects=4, cmap='gray', fig_height=6, orientation='IAL', title='Intensity Standardization'):
+def view_intensity_normalization(data_dir='data/preprocessing/output', scan_type='AX_3D_T1_POST', subjects_to_plot=None, num_subjects=4, cmap='gray', fig_height=6, orientation='IAL', title='Intensity Normalization', save_fig=False):
     """
     Author: Lawrence Chillrud
     
@@ -46,7 +46,7 @@ def view_intensity_standardization(data_dir='data/preprocessing/output', scan_ty
         The height of the figure. The default is 6.
     """
     before_dir = f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED'
-    after_dir = f'{data_dir}/4c_HISTOGRAM_EQUALIZED'
+    after_dir = f'{data_dir}/5_ZSCORE_NORMALIZED'
     subjects = lsdir(after_dir)
     subjects = [s for s in subjects if f'{s}_Brainlab' in lsdir(f'{after_dir}/{s}')]
 
@@ -115,11 +115,15 @@ def view_intensity_standardization(data_dir='data/preprocessing/output', scan_ty
       _ = plot_histogram(image, ax=axs[1, num_subjects], alpha=0.8, label=subjects_to_plot[i])
 
     plt.tight_layout()
-    plt.show()
+    if save_fig: 
+      fig.savefig(f'{after_dir}/{scan_type}.png')
+    else:
+      plt.show()
+    plt.close()
 
-view_intensity_standardization()
+# view_intensity_normalization()
 
 # %% 
 for st in ['AX_3D_T1_POST', 'AX_3D_T1_PRE', 'AX_ADC', 'AX_DIFFUSION', 'SAG_3D_FLAIR', 'AX_SWI', 'SAG_3D_T2']:
-    view_intensity_standardization(scan_type=st, subjects_to_plot=['105', '110', '111', '115'], title="Histogram Equalization")
+    view_intensity_normalization(scan_type=st, subjects_to_plot=['105', '110', '111', '115'], title="Z-score Normalization", save_fig=True)
 # %%

@@ -21,22 +21,25 @@ import cv2
 
 setup()
 
-def view_skullstrip_results(data_dir='data/preprocessing/output', scan_type='AX_3D_T1_POST', subjects_to_plot=None, num_subjects=4, cmap='gray', fig_height=6, orientation='RSA'):
+def view_skullstrip_results(data_dir='data/preprocessing/output', scan_type='AX_3D_T1_POST', subjects_to_plot=None, num_subjects=4, cmap='gray', fig_height=6, orientation='RSA', have_ss=False):
     """
     Author: Lawrence Chillrud
     """
-    before_dir = f'{data_dir}/4_INTENSITY_STANDARDIZED'
-    after_dir = f'{data_dir}/5_SKULLSTRIPPED'
+    before_dir = f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED'
+    if have_ss:
+        after_dir = f'{data_dir}/5_SKULLSTRIPPED'
+    else:
+        after_dir = before_dir
     subjects = lsdir(after_dir)
     subjects = [s for s in subjects if f'{s}_Brainlab' in lsdir(f'{after_dir}/{s}')]
 
     if subjects_to_plot is None:
-      # pick randomly num_subjects from subjects so long as they have a scan of type scan_type
-      all_scans = [' '.join(lsdir(f'{after_dir}/{subject}/{subject}_Brainlab')) for subject in subjects]
-      subjects = [s for i, s in enumerate(subjects) if scan_type in all_scans[i]]
-      subjects_to_plot = sorted(np.random.choice(subjects, num_subjects, replace=False))
+        # pick randomly num_subjects from subjects so long as they have a scan of type scan_type
+        all_scans = [' '.join(lsdir(f'{after_dir}/{subject}/{subject}_Brainlab')) for subject in subjects]
+        subjects = [s for i, s in enumerate(subjects) if scan_type in all_scans[i]]
+        subjects_to_plot = sorted(np.random.choice(subjects, num_subjects, replace=False))
     else:
-      num_subjects = len(subjects_to_plot)
+        num_subjects = len(subjects_to_plot)
     
     fig, axs = plt.subplots(num_subjects, 4, figsize=(fig_height*3, fig_height*num_subjects))
     fig.suptitle(f'{scan_type}: Skull stripping Before vs. After', fontsize=36, y=1)
@@ -45,8 +48,16 @@ def view_skullstrip_results(data_dir='data/preprocessing/output', scan_type='AX_
         scans = lsdir(f'{after_dir}/{subject}/{session}')
         scan = [s for s in scans if s.endswith(scan_type)][0]
         before = read_example_mri(before_dir, subject, session, scan, ants=True, orientation=orientation).numpy()
-        after = read_example_mri(after_dir, subject, session, scan, ants=True, orientation=orientation).numpy()
-        mask = image_read(f'{after_dir}/{subject}/{session}/{scan}/brain_mask.nii.gz', reorient=orientation).numpy()
+        if have_ss:
+            after = read_example_mri(after_dir, subject, session, scan, ants=True, orientation=orientation).numpy()
+            mask = image_read(f'{after_dir}/{subject}/{session}/{scan}/brain_mask.nii.gz', reorient=orientation).numpy()
+        else:
+            after = before.copy()
+            after[after <= after.mean()] = 0
+            # set the mask to be a binary mask of the brain
+            mask = after.copy()
+            mask[mask > 0] = 1
+            mask = mask.astype(np.uint8)
 
         assert before.shape == after.shape == mask.shape
 

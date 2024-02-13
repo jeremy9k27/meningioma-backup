@@ -123,23 +123,23 @@ def explore_3D_array_comparison(arr_before: np.ndarray, arr_after: np.ndarray, c
 
   def fn(SLICE):
     
-    global_min = min(arr_before[SLICE, :, :].min(), arr_after[SLICE, :, :].min())
-    global_max = max(arr_before[SLICE, :, :].max(), arr_after[SLICE, :, :].max())
+    global_min = min(arr_before[:, :, SLICE].min(), arr_after[:, :, SLICE].min())
+    global_max = max(arr_before[:, :, SLICE].max(), arr_after[:, :, SLICE].max())
 
     fig, (ax1, ax2) = plt.subplots(1, 2, sharex='col', sharey='row', figsize=(10,10))
     fig.suptitle(title, fontsize=18, y=0.80)
 
     ax1.set_title('Before', fontsize=15)
-    im1 = ax1.imshow(arr_before[SLICE, :, :], cmap=cmap, vmin=global_min, vmax=global_max)
+    im1 = ax1.imshow(arr_before[:, :, SLICE], cmap=cmap, vmin=global_min, vmax=global_max)
     fig.colorbar(im1, ax=ax1, orientation='vertical', fraction=0.046, pad=0.04)
 
     ax2.set_title('After', fontsize=15)
-    im2 = ax2.imshow(arr_after[SLICE, :, :], cmap=cmap, vmin=global_min, vmax=global_max)
+    im2 = ax2.imshow(arr_after[:, :, SLICE], cmap=cmap, vmin=global_min, vmax=global_max)
     fig.colorbar(im2, ax=ax2, orientation='vertical', fraction=0.046, pad=0.04)
 
     plt.tight_layout()
   
-  interact(fn, SLICE=(0, arr_before.shape[0]-1))
+  interact(fn, SLICE=(0, arr_before.shape[2]-1))
 
 
 def show_sitk_img_info(img: sitk.Image):

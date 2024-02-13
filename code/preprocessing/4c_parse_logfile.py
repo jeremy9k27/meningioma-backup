@@ -39,7 +39,7 @@ lines_to_exclude = [
     # 'Using SynthStrip to skull strip'
 ]
 
-filepath = 'data/preprocessing/output/5a_SKULLSTRIPPED/5a_log.txt'
+filepath = 'data/preprocessing/output/4_SKULLSTRIPPED/log.txt'
 
 with open(filepath) as fp:
    line = fp.readline()

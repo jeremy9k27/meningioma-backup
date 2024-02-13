@@ -1,4 +1,4 @@
-# File: 5a_skullstrip.py
+# File: 4a_skullstrip.py
 # Date: 01/23/2024
 # Author: Lawrence Chillrud <chili@u.northwestern.edu>
 # Description: Performs skull stripping (brain extraction) on the MRI scans in our cohort.
@@ -44,38 +44,30 @@ from tqdm import tqdm
 import time
 import shutil
 import os
+# from concurrent.futures import ProcessPoolExecutor, as_completed
 
 #-------------------------#
 #### 1. FILE WRANGLING ####
 #-------------------------#
 setup()
-begin_time = time.time()
 
 skull_stripper = './code/preprocessing/synthstrip-docker'
 
-data_dir = 'data/preprocessing/output/4c_HISTOGRAM_EQUALIZED'
-output_dir = 'data/preprocessing/output/5a_SKULLSTRIPPED'
-log_file = os.path.join(output_dir, '5a_log.txt')
+data_dir = 'data/preprocessing/output/3_N4_BIAS_FIELD_CORRECTED'
+output_dir = 'data/preprocessing/output/4_SKULLSTRIPPED'
+log_dir = f'{output_dir}/logs'
+num_workers = 4
 
 if not os.path.exists(output_dir): os.makedirs(output_dir)
+if not os.path.exists(log_dir): os.makedirs(log_dir)
 
-date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-bar = '-' * 80
-os.system(f"echo '\n{bar}\n' >> {log_file}")
-os.system(f"echo 'Running script 5a_skullstrip.py at {date}\n' >> {log_file}")
-print(f"Logging output to {log_file}")
-
-#---------------------------#
-#### 2. SKULLSTRIP SCANS ####
-#---------------------------#
-subjects = lsdir(data_dir)
-scans_to_skullstrip = ['SAG_3D_FLAIR'] # LGC: REMOVE THIS LINE WHEN READY FOR FULL SCALE!
-for subject in tqdm(subjects, desc="Subjects"):
-    for session in tqdm(lsdir(f'{data_dir}/{subject}'), desc="Sessions", leave=False):
-        for scan in tqdm(lsdir(f'{data_dir}/{subject}/{session}'), desc="Scans", leave=False):
+def skullstrip_subject(subject):
+    log_file = f'{log_dir}/{subject}-log.txt'
+    for session in lsdir(f'{data_dir}/{subject}'):
+        for scan in lsdir(f'{data_dir}/{subject}/{session}'):
             cur_input_dir = f'{data_dir}/{subject}/{session}/{scan}'
             cur_output_dir = f'{output_dir}/{subject}/{session}/{scan}'
-            if not os.path.exists(f'{cur_output_dir}/{session}_{scan}.nii.gz') and scan.split('-')[-1] in scans_to_skullstrip: 
+            if not (os.path.exists(f'{cur_output_dir}/{session}_{scan}.nii.gz') and os.path.exists(f'{cur_output_dir}/brain_mask.nii.gz')): 
                 # file wrangling and logging
                 if not os.path.exists(cur_output_dir): os.makedirs(cur_output_dir)
                 os.system(f"echo 'Using SynthStrip to skull strip {session}/{scan}' >> {log_file}")
@@ -84,8 +76,33 @@ for subject in tqdm(subjects, desc="Subjects"):
                 # skull strip image and save
                 os.system(f"{skull_stripper} -i {cur_input_dir}/{session}_{scan}.nii.gz -o {cur_output_dir}/{session}_{scan}.nii.gz -m {cur_output_dir}/brain_mask.nii.gz >> {log_file}")
 
-time_elapsed = time.time() - begin_time
-date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-os.system(f"echo 'Completed 5a_skullstrip.py at {date}\n' >> {log_file}")
-os.system(f"echo 'Total elapsed time: {time_elapsed}' >> {log_file}")
-os.system(f"echo '\n{bar}\n' >> {log_file}")
+def main():
+    overall_log_file = os.path.join(output_dir, 'log.txt')
+    print(f"Logging output to {overall_log_file}")
+
+    overall_begin_time = time.time()
+    overall_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    bar = '-' * 80
+    os.system(f"echo '\n{bar}\n' >> {overall_log_file}")
+    os.system(f"echo 'Running script 4a_skullstrip.py at {overall_start_time}\n' >> {overall_log_file}")
+    os.system(f"echo 'Number of workers used: {num_workers}' >> {overall_log_file}")
+
+    #---------------------------#
+    #### 2. SKULLSTRIP SCANS ####
+    #---------------------------#
+    subjects = lsdir(data_dir)
+    for subject in tqdm(subjects, desc='Skull stripping'):
+        skullstrip_subject(subject)
+
+    overall_end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    overall_time_elapsed = time.time() - overall_begin_time
+    hours, rem = divmod(overall_time_elapsed, 3600)
+    minutes, seconds = divmod(rem, 60)
+    overall_time_elapsed = "{:0>2}:{:0>2}:{:05.2f}".format(int(hours),int(minutes),seconds)
+    os.system(f"cat {log_dir}/* >> {overall_log_file}")
+    os.system(f"echo '\nCompleted skull stripping all subjects at {overall_end_time}' >> {overall_log_file}")
+    os.system(f"echo 'Total elapsed time: {overall_time_elapsed}\n' >> {overall_log_file}")
+    os.system(f"echo '{bar}\n' >> {overall_log_file}")
+
+if __name__ == '__main__':
+    main()

@@ -38,11 +38,11 @@ setup()
 #### 1. VIEW REGISTRATION ####
 #----------------------------#
 def view_registration(subject='111', orientation='IAL'):
-    before_dir = f'data/preprocessing/output/4c_HISTOGRAM_EQUALIZED/{subject}/{subject}_Brainlab/'
-    after_dir = f'data/preprocessing/output/6c_REGISTERED/{subject}/{subject}_Brainlab/'
-    skullstrip_dir = f'data/preprocessing/output/5a_SKULLSTRIPPED/{subject}/{subject}_Brainlab/'
+    before_dir = f'data/preprocessing/output/5_ZSCORE_NORMALIZED/{subject}/{subject}_Brainlab/'
+    after_dir = f'data/preprocessing/output/6_REGISTERED/{subject}/{subject}_Brainlab/'
+    skullstrip_dir = f'data/preprocessing/output/4_SKULLSTRIPPED/{subject}/{subject}_Brainlab/'
 
-    suffix = 'SyNRA_registration_to_AX_3D_T1_POST'
+    suffix = 'Affine_registration_to_AX_3D_T1_POST'
     mni_template_path = 'data/preprocessing/output/6_REGISTERED/mni_icbm152_nlin_sym_09a/mni_icbm152_t1_tal_nlin_sym_09a.nii'
     mni_template = ants.image_read(mni_template_path, reorient=orientation)
 
@@ -73,7 +73,10 @@ def view_registration(subject='111', orientation='IAL'):
     for i, scan in enumerate(reg_scans):
         before = ants.image_read(f'{before_dir}/{scan}/{subject}_Brainlab_{scan}.nii.gz', reorient=orientation)
         if 'AX_3D_T1_POST' not in scan:
-            in_between = ants.image_read(f'{after_dir}/{scan}/{subject}_Brainlab_{scan}_{suffix}.nii.gz', reorient=orientation)
+            if os.path.exists(f'{after_dir}/{scan}/{subject}_Brainlab_{scan}_{suffix}.nii.gz'):
+                in_between = ants.image_read(f'{after_dir}/{scan}/{subject}_Brainlab_{scan}_{suffix}.nii.gz', reorient=orientation)
+            else:
+                in_between = None
         after = ants.image_read(f'{after_dir}/{scan}/{subject}_Brainlab_{scan}.nii.gz', reorient=orientation)
         
         slice = before.shape[0] // 2
@@ -82,10 +85,11 @@ def view_registration(subject='111', orientation='IAL'):
         axs[0, i].set_xlabel(f'Slice: {slice}/{before.shape[0]} for shape {before.shape}')
 
         if 'AX_3D_T1_POST' not in scan:
-            slice = in_between.shape[0] // 2
-            axs[1, i].imshow(in_between.numpy()[slice, :, :], cmap='gray')
-            axs[1, i].set_title(f'{scan} SyNRA')
-            axs[1, i].set_xlabel(f'Slice: {slice}/{in_between.shape[0]} for shape {in_between.shape}')
+            if in_between is not None:
+                slice = in_between.shape[0] // 2
+                axs[1, i].imshow(in_between.numpy()[slice, :, :], cmap='gray')
+                axs[1, i].set_title(f'{scan} Affine')
+                axs[1, i].set_xlabel(f'Slice: {slice}/{in_between.shape[0]} for shape {in_between.shape}')
         else:
             slice = mni_template.shape[0] // 2
             axs[1, i].imshow(mni_template.numpy()[slice, :, :], cmap='gray')
@@ -95,7 +99,7 @@ def view_registration(subject='111', orientation='IAL'):
 
         slice = after.shape[0] // 2
         axs[2, i].imshow(after.numpy()[slice, :, :], cmap='gray')
-        axs[2, i].set_title(f'{scan} Rigid')
+        axs[2, i].set_title(f'{scan} Affine')
         axs[2, i].set_xlabel(f'Slice: {slice}/{after.shape[0]} for shape {after.shape}')
 
         for ax in axs[:, i]:
@@ -109,11 +113,11 @@ def view_registration(subject='111', orientation='IAL'):
     for scan in swi_dwi_scans:
         cur_scans = [s for s in os.listdir(f'{after_dir}/{scan}') if s.endswith('.nii.gz')]
         before_path = f'{before_dir}/{scan}/{subject}_Brainlab_{scan}.nii.gz'
-        cur1_path = [s for s in cur_scans if 'SyNRA_registration_to' in s][0]
-        cur2_path = [s for s in cur_scans if 'SyNRA_propogated_registration' in s][0]
+        cur1_path = [s for s in cur_scans if 'Affine_registration_to' in s][0]
+        cur2_path = [s for s in cur_scans if 'Affine_propogated_registration' in s][0]
         cur_final = f'{after_dir}/{scan}/{subject}_Brainlab_{scan}.nii.gz'
 
-        reg1_scan_type = cur1_path.split('SyNRA_registration_to_')[-1]
+        reg1_scan_type = cur1_path.split('Affine_registration_to_')[-1]
         reg1_scan_type = reg1_scan_type.split('.nii.gz')[0]
         reg1_scan_path = [s for s in scans if reg1_scan_type in s][0]
         reg1_path = f'{skullstrip_dir}/{reg1_scan_path}/{subject}_Brainlab_{reg1_scan_path}.nii.gz'
@@ -166,7 +170,7 @@ view_registration()
 #---------------------------------# 
 # Find out which subjects/sessions are missing the AX_3D_T1_POST scan, 
 # and therefore which subjects/sessions are not yet registered
-data_dir = 'data/preprocessing/output/6c_REGISTERED'
+data_dir = 'data/preprocessing/output/6_REGISTERED'
 for subject in lsdir(data_dir):
       for session in lsdir(f'{data_dir}/{subject}'):
         found_ax3dt1post = False
