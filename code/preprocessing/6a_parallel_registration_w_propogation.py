@@ -66,9 +66,12 @@ if not os.path.exists(mni_template_path):
 mni_template = ants.image_read(mni_template_path, reorient='IAL')
 
 def save_transforms(tx, output_path):
-    for i, t in enumerate(tx):
-        suffix = t.split('.')[-1]
-        shutil.copy(t, f'{output_path}_transform_tx_{i}.{suffix}')
+    try:
+        for i, t in enumerate(tx):
+            suffix = t.split('.')[-1]
+            shutil.copy(t, f'{output_path}_transform_tx_{i}.{suffix}')
+    except Exception as e:
+        logging.info(f"\t\t\tError in saving transforms: {e}")
 
 #-----------------------#
 #### 2. REGISTRATION ####
