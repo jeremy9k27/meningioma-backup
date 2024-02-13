@@ -49,7 +49,7 @@ skullstrip_dir = 'data/preprocessing/output/4_SKULLSTRIPPED' # set this to None 
 data_dir = 'data/preprocessing/output/5b_ZSCORE_NORMALIZED'
 output_dir = 'data/preprocessing/output/6b_REGISTERED'
 log_dir = f'{output_dir}/logfiles'
-num_workers = 1
+num_workers = 4
 
 if not os.path.exists(output_dir): os.makedirs(output_dir)
 if not os.path.exists(log_dir): os.makedirs(log_dir)
