@@ -51,7 +51,7 @@ begin_time = time.time()
 #-----------------------------------#
 data_dir = 'data/preprocessing/output/3_N4_BIAS_FIELD_CORRECTED'
 skullstrip_dir = 'data/preprocessing/output/4_SKULLSTRIPPED'
-output_dir = 'data/preprocessing/output/5_ZSCORE_NORMALIZED'
+output_dir = 'data/preprocessing/output/5b_ZSCORE_NORMALIZED'
 
 log_file = os.path.join(output_dir, 'log.txt')
 
@@ -121,7 +121,9 @@ os.system(f"echo 'Note that scans of type {global_scan_types} will be globally z
 def zscore_norm(im, mask):
     mu = im[mask == 1].mean()
     sigma = im[mask == 1].std()
-    return (im - mu) / sigma
+    norm_im = (im - mu) / sigma
+    if norm_im.min() < 0: norm_im = norm_im + abs(norm_im.min())
+    return norm_im
 
 scan_types_to_normalize = scan_types_dict.keys()
 for i, scan_type in enumerate(scan_types_to_normalize):
@@ -165,7 +167,9 @@ for i, scan_type in enumerate(scan_types_to_normalize):
         arr_images_flat = np.concatenate(arr_images_flat)
         mean = arr_images_flat.mean()
         std = arr_images_flat.std()
-        arr_normalized = [(im - mean) / std for im in tqdm(arr_images, desc=f"Normalizing {scan_type} images", leave=True)]
+        new_images_flat = (arr_images_flat - mean) / std
+        global_min = new_images_flat.min()
+        arr_normalized = [((im - mean) / std) + abs(global_min) for im in tqdm(arr_images, desc=f"Normalizing {scan_type} images", leave=True)]
         for normalized_im, output_fp, aff_mat in tqdm(zip(arr_normalized, cur_output_filepaths, affine_mats), desc=f"Saving {scan_type} images", leave=True, total=len(cur_output_filepaths)):
             nib.save(nib.Nifti1Image(normalized_im, affine=aff_mat), output_fp)
 
