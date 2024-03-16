@@ -76,7 +76,9 @@ def extract_features(s, e):
 
     for modality in MODALITIES:
         if modality not in s_modalities:
-            raise NotImplementedError(f'Missing modality {modality} for subject {s}')
+            logging.warning(f'Missing modality {modality} for subject {s}')
+            continue
+
         modality_path = s_modalities_paths[s_modalities.index(modality)]
         mri_path = f'{MRI_DIR}/{s}/{session}/{modality_path}/{session}_{modality_path}.nii.gz'
         
