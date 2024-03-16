@@ -35,7 +35,7 @@ import ants
 
 setup()
 
-dir_of_interest = '7_COMPLETED_PREPROCESSED'
+dir_of_interest = '8_SKULLSTRIPPED_COMPLETED_PREPROCESSED'
 data_dir = f'data/preprocessing/output/{dir_of_interest}'
 output_dir = f'data/preprocessing/output/THUMBS_{dir_of_interest}'
 

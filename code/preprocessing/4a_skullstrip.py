@@ -53,10 +53,9 @@ setup()
 
 skull_stripper = './code/preprocessing/synthstrip-docker'
 
-data_dir = 'data/preprocessing/output/3_N4_BIAS_FIELD_CORRECTED'
-output_dir = 'data/preprocessing/output/4_SKULLSTRIPPED'
+data_dir = 'data/preprocessing/output/7_COMPLETED_PREPROCESSED' # was 3_N4_BIAS_FIELD_CORRECTED
+output_dir = 'data/preprocessing/output/8_SKULLSTRIPPED_COMPLETED_PREPROCESSED' # was 4_SKULLSTRIPPED
 log_dir = f'{output_dir}/logs'
-num_workers = 4
 
 if not os.path.exists(output_dir): os.makedirs(output_dir)
 if not os.path.exists(log_dir): os.makedirs(log_dir)
@@ -85,7 +84,6 @@ def main():
     bar = '-' * 80
     os.system(f"echo '\n{bar}\n' >> {overall_log_file}")
     os.system(f"echo 'Running script 4a_skullstrip.py at {overall_start_time}\n' >> {overall_log_file}")
-    os.system(f"echo 'Number of workers used: {num_workers}' >> {overall_log_file}")
 
     #---------------------------#
     #### 2. SKULLSTRIP SCANS ####
