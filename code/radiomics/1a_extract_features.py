@@ -53,7 +53,7 @@ setup()
 MRI_DIR = 'data/preprocessing/output/7_COMPLETED_PREPROCESSED'
 SEGS_DIR = 'data/segmentations/'
 SEGS_PATHS = [f for f in os.listdir(SEGS_DIR) if f.startswith('Segmentation')]
-OUTPUT_DIR = 'data/radiomics/features'
+OUTPUT_DIR = 'data/radiomics/features2'
 OUTPUT_FILE = f'{OUTPUT_DIR}/features.csv'
 LOG_FILE = f'{OUTPUT_DIR}/log.txt'
 MODALITIES = ['AX_3D_T1_POST', 'AX_DIFFUSION', 'AX_ADC', 'SAG_3D_FLAIR']
@@ -191,7 +191,7 @@ def main():
     logging.info(f'Saving wide features (shape={df_wide.shape}) to csv file...')
     df_wide.to_csv(f'{OUTPUT_DIR}/features_wide.csv')
     logging.info('Done!\n')
-    
+
     overall_end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     overall_time_elapsed = time.time() - overall_begin_time
     hours, rem = divmod(overall_time_elapsed, 3600)

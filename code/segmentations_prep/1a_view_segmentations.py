@@ -55,7 +55,7 @@ for f in os.listdir(segmentations_dir):
         seg = ants.image_read(f'{segmentations_dir}/{f}')
         # seg = nib.load(f'{segmentations_dir}/{f}')
         # seg = sitk.ReadImage(f'{segmentations_dir}/{f}')
-        # print(f'Successfully read in {f}, got the following values: {np.unique(seg.numpy())}')
+        print(f'Successfully read in {f}, got the following values: {np.unique(seg.numpy())}')
         fine_files.append(f)
     except Exception as e:
         # print('-'*80)
