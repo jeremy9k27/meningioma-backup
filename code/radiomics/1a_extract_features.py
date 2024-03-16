@@ -56,7 +56,7 @@ SEGS_PATHS = [f for f in os.listdir(SEGS_DIR) if f.startswith('Segmentation')]
 OUTPUT_DIR = 'data/radiomics/features'
 OUTPUT_FILE = f'{OUTPUT_DIR}/features.csv'
 LOG_FILE = f'{OUTPUT_DIR}/log.txt'
-MODALITIES = ['AX_3D_T1_POST']
+MODALITIES = ['AX_3D_T1_POST', 'AX_DIFFUSION', 'AX_ADC', 'SAG_3D_FLAIR']
 if not os.path.exists(OUTPUT_DIR): os.makedirs(OUTPUT_DIR)
 
 def extract_features(s, e):

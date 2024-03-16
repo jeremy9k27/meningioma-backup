@@ -24,3 +24,22 @@ def count_subjects(labels_file='data/labels/MeningiomaBiomarkerData.csv', mri_di
     if verbose: print(have_df[outcome].value_counts())
 
     return sorted(mris_w_labels), sorted(mris_w_labels_w_segs), have_df
+
+def get_subset_scan_counts(subjects, data_dir='data/preprocessing/output/7_COMPLETED_PREPROCESSED'):
+    """
+    Author: Lawrence Chillrud
+
+    When data_dir is data/preprocessing/output/>=2, then dir_of_interest should be '', 
+    otherwise, it should be 'ready_for_preprocessing' or 'ask_virginia'
+    """
+    scan_counts = {}
+    for subject in subjects:
+        # for session in lsdir(f'{data_dir}/{subject}'):
+        session = lsdir(f'{data_dir}/{subject}')[0]
+        for scan in lsdir(f'{data_dir}/{subject}/{session}/'):
+            scan_type = scan.split('-')[1]
+            if scan_type in scan_counts:
+                scan_counts[scan_type] += 1
+            else:
+                scan_counts[scan_type] = 1
+    return scan_counts
