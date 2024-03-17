@@ -3,17 +3,37 @@
 # Author: Lawrence Chillrud <chili@u.northwestern.edu>
 # Description:
 
-from preprocessing.utils import lsdir
-import pandas as pd
+import sys
 import os
 
-def count_subjects(labels_file='data/labels/MeningiomaBiomarkerData.csv', mri_dir='data/preprocessing/output/7_COMPLETED_PREPROCESSED', segs_dir='data/segmentations', outcome='MethylationSubgroup', verbose=False):
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+from preprocessing.utils import lsdir
+import pandas as pd
+from sklearn.model_selection import train_test_split
+
+def get_data(features_file='data/radiomics/features2/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', test_size=9, seed=42):
+    features = pd.read_csv(features_file)
+    labels = pd.read_csv(labels_file)
+    labels = labels.dropna(subset=[outcome])
+    labels = labels[labels['Subject Number'].isin(features['Subject Number'])]
+    data = features.merge(labels, on='Subject Number')
+    train_df, test_df = train_test_split(data, test_size=test_size, random_state=seed, stratify=data[outcome])
+    return train_df, test_df
+
+def count_subjects(labels_file='data/labels/MeningiomaBiomarkerData.csv', mri_dir='data/preprocessing/output/7_COMPLETED_PREPROCESSED', segs_dir='data/segmentations', outcome='MethylationSubgroup', verbose=False, drop_by_outcome=True):
     labels = pd.read_csv(labels_file)
     mri_subjects = lsdir(mri_dir)
     segmentations = [f for f in os.listdir(segs_dir) if f.startswith('Segmentation')]
     seg_subs = list(set([f.split('Segmentation ')[-1].split(' ')[0].split('.nii')[0] for f in segmentations]))
 
-    labels_subs = labels.dropna(subset=[outcome])['Subject Number'].to_list()
+    if drop_by_outcome:
+        labels_subs = labels.dropna(subset=[outcome])['Subject Number'].to_list()
+    else:
+        labels_subs = labels.dropna(how='all')['Subject Number'].to_list()
+    
     labels_subs = [str(int(s)) for s in labels_subs]
 
     mris_w_labels = list(set(mri_subjects) & set(labels_subs))
