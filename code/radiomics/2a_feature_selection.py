@@ -35,6 +35,8 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 import numpy as np
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import IterativeImputer
 from sklearn.model_selection import KFold
 from sklearn.feature_selection import mutual_info_classif, SelectKBest
 from sklearn.ensemble import RandomForestClassifier
@@ -43,7 +45,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from utils import get_data
 from preprocessing.utils import setup
 from sklearn.preprocessing import label_binarize
-from sklearn.metrics import RocCurveDisplay, roc_curve, auc, confusion_matrix, accuracy_score
+from sklearn.metrics import RocCurveDisplay, roc_curve, auc, confusion_matrix, accuracy_score, precision_score, recall_score, f1_score, balanced_accuracy_score, matthews_corrcoef
 from itertools import cycle
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -52,24 +54,72 @@ import pandas as pd
 
 setup()
 
-OUTCOME = 'MethylationSubgroup'
-CLASS_IDS = ['Merlin Intact', 'Immune Enriched', 'Hypermetabolic']
+OUTCOME = 'MethylationSubgroup' # 'MethylationSubgroup' or 'Chr1p' or 'Chr22q' or 'Chr9p' or 'TERT'
+CLASS_IDS = ['Merlin Intact', 'Immune Enriched', 'Hypermetabolic'] # ['Intact', 'Loss'] or ['Merlin Intact', 'Immune Enriched', 'Hypermetabolic']
 N_CLASSES = len(CLASS_IDS)
-TEST_SIZE = 9
+TEST_SIZE = 12
 SEED = 1
-OUTPUT_DIR = f'data/radiomics/evaluations/{OUTCOME}_TestSize-{TEST_SIZE}_Seed-{SEED}'
+MULTIPLE_IMPUTATION = True
+OUTPUT_DIR = f'data/radiomics/evaluations/{OUTCOME}_TestSize-{TEST_SIZE}_Seed-{SEED}_MultImpute-{MULTIPLE_IMPUTATION}'
 if not os.path.exists(OUTPUT_DIR): os.makedirs(OUTPUT_DIR)
 
-def prep_data(outcome=OUTCOME, test_size=TEST_SIZE, seed=SEED):
+def prep_data(outcome=OUTCOME, test_size=TEST_SIZE, seed=SEED, multiple_imputation=MULTIPLE_IMPUTATION):
     train_df, test_df = get_data(outcome=outcome, test_size=test_size, seed=seed)
-    train_df = train_df.fillna(train_df.mean())
-    test_df = test_df.fillna(test_df.mean())
-    # TODO: use multiple imputation to handle missing values, but be careful about data leakage
-    X_train_df = train_df.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
-    y_train = train_df[outcome].values.astype(int)
-    X_test_df = test_df.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
-    y_test = test_df[outcome].values.astype(int)
+    if multiple_imputation:
+        X_train_df = train_df.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
+        y_train = train_df[outcome].values.astype(int)
+        X_test_df = test_df.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
+        y_test = test_df[outcome].values.astype(int)
+        imputer = IterativeImputer(max_iter=10, sample_posterior=True, random_state=seed)
+        X_train_imputed_df = pd.DataFrame(imputer.fit_transform(X_train_df), columns=X_train_df.columns)
+        X_test_imputed_df = pd.DataFrame(imputer.transform(X_test_df), columns=X_test_df.columns)
+        X_train_df = X_train_imputed_df
+        X_test_df = X_test_imputed_df
+    else:
+        train_df = train_df.fillna(train_df.mean())
+        test_df = test_df.fillna(test_df.mean())
+        X_train_df = train_df.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
+        y_train = train_df[outcome].values.astype(int)
+        X_test_df = test_df.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
+        y_test = test_df[outcome].values.astype(int)
+    
     return X_train_df, y_train, X_test_df, y_test
+
+def plot_train_test_split(y_train, y_test, save_fig=True):
+    unique_classes = np.unique(np.concatenate((y_train, y_test)))
+    train_counts_array = [np.sum(y_train == uc) for uc in unique_classes]
+    test_counts_array = [np.sum(y_test == uc) for uc in unique_classes]
+    combined_counts_array = pd.DataFrame({'Training': train_counts_array, 'Testing': test_counts_array}, index=unique_classes)
+    
+    fig, ax = plt.subplots()
+    bar_width = 0.35
+    index = np.arange(len(unique_classes))
+
+    # Plotting the training bars
+    train_bars = ax.bar(index - bar_width/2, combined_counts_array['Training'], bar_width, label='Training', color='tab:blue')
+
+    # Plotting the testing bars
+    test_bars = ax.bar(index + bar_width/2, combined_counts_array['Testing'], bar_width, label='Testing', color='tab:orange')
+
+    # Adding the bar labels
+    ax.bar_label(train_bars, padding=3)
+    ax.bar_label(test_bars, padding=3)
+
+    # Setting the rest of the plot
+    ax.set_xlabel('Class')
+    ax.set_xticks(index)
+    ax.set_xticklabels(CLASS_IDS if CLASS_IDS else unique_classes)
+    ax.set_ylabel('Number of Samples')
+    ax.set_title(f'Train/Test Samples per Class ({len(y_train)}/{len(y_test)} split)')
+    ax.legend(title='Dataset')
+
+    plt.tight_layout()
+
+    # Saving the figure or showing it
+    if save_fig:
+        plt.savefig(f'{OUTPUT_DIR}/train_test_split.png')
+    else:
+        plt.show()
 
 def feature_selection(X, y, seed=SEED, top_k=32):
     # Step 1: Univariate feature selection
@@ -243,11 +293,83 @@ def plot_metrics(train_probs, test_probs, y_train, y_test, use_test=True, class_
     else:
         plt.show()
 
+def plot_binary_metrics(train_probs, test_probs, y_train, y_test, use_test=True, class_ids=CLASS_IDS, save_fig=True):
+    if not use_test:
+        y_test = y_train
+        test_probs = train_probs
+
+    fpr, tpr, _ = roc_curve(y_test, test_probs[:, 1])
+    roc_auc = auc(fpr, tpr)
+
+    plt.subplot(1, 2, 2)
+    plt.plot(fpr, tpr, color='tab:orange', lw=2, label=f'AUC = {roc_auc:.2f}')
+    plt.plot([0, 1], [0, 1], color='tab:blue', lw=2, linestyle='--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title(f'ROC Curve {OUTCOME} (Train/test split: {y_train.shape[0]}/{TEST_SIZE})')
+    plt.legend(loc="lower right")
+    
+    plt.tight_layout()
+    if save_fig:
+        plt.savefig(f'{OUTPUT_DIR}/roc_curve.png')
+    else:
+        plt.show()
+
+    predicted_labels = np.argmax(test_probs, axis=1)
+    conf_matrix = confusion_matrix(y_test, predicted_labels)
+    tn, fp, fn, tp = conf_matrix.ravel()
+    accuracy = accuracy_score(y_test, predicted_labels)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='viridis', cbar=False, xticklabels=class_ids, yticklabels=class_ids)
+    plt.xlabel('Predicted labels')
+    plt.ylabel('True labels')
+    plt.title(f'Confusion Matrix: {OUTCOME} (Train/test split: {y_train.shape[0]}/{TEST_SIZE})\nOverall Accuracy = {accuracy*100:.2f}%')
+    
+    if save_fig:
+        plt.savefig(f'{OUTPUT_DIR}/confusion_matrix.png')
+    else:
+        plt.show()
+
+    metrics = {
+        'AUC': roc_auc,
+        'F1 Score': f1_score(y_test, predicted_labels, average='binary'), # or weighted
+        'Precision': precision_score(y_test, predicted_labels, average='binary'), # or weighted
+        'Recall (Sensitivity)': recall_score(y_test, predicted_labels, average='binary'), # or weighted
+        'Specificity': tn / (tn + fp),
+        'Accuracy': accuracy,
+        'Balanced Accuracy': balanced_accuracy_score(y_test, predicted_labels),
+        'MCC': matthews_corrcoef(y_test, predicted_labels)
+    }
+
+    metrics_df = pd.DataFrame(metrics.items(), columns=['Metric', 'Value'])
+
+    # Plotting and saving the table as a PNG
+    _, ax = plt.subplots(figsize=(8, 3))  # Adjust the figure size as needed
+    ax.axis('tight')
+    ax.axis('off')
+    ax.table(cellText=metrics_df.values, colLabels=metrics_df.columns, cellLoc = 'center', loc='center')
+    if save_fig:
+        plt.savefig(f'{OUTPUT_DIR}/metrics_table.png')
+    else:
+        plt.show()
+
 #%%
 X_train_df, y_train, X_test_df, y_test = prep_data()
+
+if N_CLASSES > 2:
+    plot_train_test_split(np.argmax(y_train, axis=1), np.argmax(y_test, axis=1))
+else:
+    plot_train_test_split(y_train, y_test)
+
 final_selected_features, final_selected_feature_ranks = feature_selection(X_train_df, y_train)
-print('Selected features:\n', final_selected_features)
-print('Selected feature ranks:\n', final_selected_feature_ranks)
 plot_corr_matrix(X_train_df[final_selected_features])
+
 train_probs, test_probs, y_train, y_test = run_model(X_train_df, y_train, X_test_df, y_test, final_selected_features)
-plot_metrics(train_probs, test_probs, y_train, y_test)
+
+if N_CLASSES > 2:
+    plot_metrics(train_probs, test_probs, y_train, y_test)
+else:
+    plot_binary_metrics(train_probs, test_probs, y_train, y_test)
+# %%

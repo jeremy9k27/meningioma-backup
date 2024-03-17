@@ -15,6 +15,6 @@ setup()
 df = pd.read_csv('data/radiomics/features/features_wide.csv')
 
 # %%
-_, _, have_df = count_subjects()
+_, _, have_df = count_subjects(drop_by_outcome=False)
 get_subset_scan_counts(have_df['Subject Number'].to_list())
 # %%
