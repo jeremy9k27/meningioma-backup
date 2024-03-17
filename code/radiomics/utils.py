@@ -14,13 +14,44 @@ from preprocessing.utils import lsdir
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-def get_data(features_file='data/radiomics/features3/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', test_size=9, seed=42):
+def get_data(features_file='data/radiomics/features3/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', test_size=9, seed=42, even_test_split=False):
     features = pd.read_csv(features_file)
     labels = pd.read_csv(labels_file)
     labels = labels.dropna(subset=[outcome])
     labels = labels[labels['Subject Number'].isin(features['Subject Number'])]
     data = features.merge(labels, on='Subject Number')
-    train_df, test_df = train_test_split(data, test_size=test_size, random_state=seed, stratify=data[outcome])
+    if not even_test_split:
+        train_df, test_df = train_test_split(data, test_size=test_size, random_state=seed, stratify=data[outcome])
+    else:
+        unique_classes = data[outcome].unique()
+        train_dfs = []
+        test_dfs = []
+        test_size_cls = test_size // len(unique_classes)
+        min_test_size = None
+
+        for cls in unique_classes:
+            # Separate the dataset by class
+            data_cls = data[data[outcome] == cls]
+            
+            # Split each class separately without stratification
+            train_df_cls, test_df_cls = train_test_split(data_cls, test_size=test_size_cls, random_state=seed)
+            
+            # Append the split dataframes to their respective lists
+            train_dfs.append(train_df_cls)
+            test_dfs.append(test_df_cls)
+            
+            # Update min_test_size to ensure balanced test set
+            if min_test_size is None or test_df_cls.shape[0] < min_test_size:
+                min_test_size = test_df_cls.shape[0]
+
+        # Make sure the test sets for all classes have the same size
+        for i in range(len(test_dfs)):
+            test_dfs[i] = test_dfs[i].sample(n=min_test_size, random_state=seed)
+
+        # Combine the training and test sets
+        train_df = pd.concat(train_dfs).sample(frac=1, random_state=seed).reset_index(drop=True)
+        test_df = pd.concat(test_dfs).sample(frac=1, random_state=seed).reset_index(drop=True)
+            
     return train_df, test_df
 
 def count_subjects(labels_file='data/labels/MeningiomaBiomarkerData.csv', mri_dir='data/preprocessing/output/7_COMPLETED_PREPROCESSED', segs_dir='data/segmentations', outcome='MethylationSubgroup', verbose=False, drop_by_outcome=True):

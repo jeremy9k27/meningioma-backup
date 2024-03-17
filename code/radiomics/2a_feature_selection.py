@@ -35,9 +35,10 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 import numpy as np
+from imblearn.over_sampling import SMOTE
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, GridSearchCV, RepeatedStratifiedKFold
 from sklearn.feature_selection import mutual_info_classif, SelectKBest
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import RFE
@@ -59,29 +60,42 @@ CLASS_IDS = ['Merlin Intact', 'Immune Enriched', 'Hypermetabolic'] # ['Intact', 
 N_CLASSES = len(CLASS_IDS)
 TEST_SIZE = 12
 SEED = 1
-MULTIPLE_IMPUTATION = True
-OUTPUT_DIR = f'data/radiomics/evaluations/{OUTCOME}_TestSize-{TEST_SIZE}_Seed-{SEED}_MultImpute-{MULTIPLE_IMPUTATION}'
+MULTIPLE_IMPUTATION = False # Kernel keeps crashing..! OOM? or try mice package later
+USE_SMOTE = False
+OUTPUT_DIR = f'data/radiomics/evaluations/{OUTCOME}_TestSize-{TEST_SIZE}_Seed-{SEED}_MultImpute-{MULTIPLE_IMPUTATION}_SMOTE-{USE_SMOTE}'
 if not os.path.exists(OUTPUT_DIR): os.makedirs(OUTPUT_DIR)
 
-def prep_data(outcome=OUTCOME, test_size=TEST_SIZE, seed=SEED, multiple_imputation=MULTIPLE_IMPUTATION):
-    train_df, test_df = get_data(outcome=outcome, test_size=test_size, seed=seed)
+def prep_data(outcome=OUTCOME, test_size=TEST_SIZE, seed=SEED, even_test_split=USE_SMOTE, multiple_imputation=MULTIPLE_IMPUTATION):
+    train_df, test_df = get_data(outcome=outcome, test_size=test_size, seed=seed, even_test_split=even_test_split)
     if multiple_imputation:
         X_train_df = train_df.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
         y_train = train_df[outcome].values.astype(int)
         X_test_df = test_df.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
         y_test = test_df[outcome].values.astype(int)
-        imputer = IterativeImputer(max_iter=10, sample_posterior=True, random_state=seed)
+        scaler = StandardScaler()
+        X_train_df = pd.DataFrame(scaler.fit_transform(X_train_df), columns=X_train_df.columns)
+        X_test_df = pd.DataFrame(scaler.transform(X_test_df), columns=X_test_df.columns)
+        imputer = IterativeImputer(max_iter=2, sample_posterior=False, random_state=seed, verbose=2)
         X_train_imputed_df = pd.DataFrame(imputer.fit_transform(X_train_df), columns=X_train_df.columns)
         X_test_imputed_df = pd.DataFrame(imputer.transform(X_test_df), columns=X_test_df.columns)
         X_train_df = X_train_imputed_df
         X_test_df = X_test_imputed_df
     else:
         train_df = train_df.fillna(train_df.mean())
-        test_df = test_df.fillna(test_df.mean())
+        test_df = test_df.fillna(train_df.mean())
         X_train_df = train_df.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
         y_train = train_df[outcome].values.astype(int)
         X_test_df = test_df.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
         y_test = test_df[outcome].values.astype(int)
+    
+    # drop columns in train_df and test_df that are all NaN
+    X_train_df = X_train_df.dropna(axis=1, how='all')
+    X_test_df = X_test_df[X_train_df.columns]
+
+    if USE_SMOTE:
+        scaler = MinMaxScaler()
+        X_train_df = pd.DataFrame(scaler.fit_transform(X_train_df), columns=X_train_df.columns)
+        X_test_df = pd.DataFrame(scaler.transform(X_test_df), columns=X_test_df.columns)
     
     return X_train_df, y_train, X_test_df, y_test
 
@@ -185,24 +199,68 @@ def plot_corr_matrix(X, save_fig=True):
     else:
         plt.show()
 
-def run_model(X_train_df, y_train, X_test_df, y_test, features, n_classes=N_CLASSES, seed=SEED):
+def run_model(X_train_df, y_train, X_test_df, y_test, features, n_classes=N_CLASSES, seed=SEED, smote=USE_SMOTE):
     # Prep data for classifier
     X_train = X_train_df[features]
+    if smote:
+        print(f"Before SMOTE: X_train: {X_train.shape}, y_train: {y_train.shape}")
+        smote = SMOTE(random_state=seed)
+        X_train, y_train = smote.fit_resample(X_train, y_train)
+        print(f"After SMOTE: X_train: {X_train.shape}, y_train: {y_train.shape}")
+
     X_test = X_test_df[features]
-    if n_classes > 2:
-        y_train = label_binarize(y_train, classes=np.arange(n_classes))
-        y_test = label_binarize(y_test, classes=np.arange(n_classes))
+    # if n_classes > 2:
+    #     y_train = label_binarize(y_train, classes=np.arange(n_classes))
+    #     y_test = label_binarize(y_test, classes=np.arange(n_classes))
 
     # Train classifier
-    # TODO: use cross-validation to tune hyperparameters
-    rf_classifier = RandomForestClassifier(n_estimators=1000, random_state=seed) # TODO: vary hyperparameters
-    rf_classifier.fit(X_train, y_train)
+    cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=seed)
+    estimator = RandomForestClassifier()
+    params = {
+        'n_estimators': [75, 100, 150, 500, 1000],
+        'criterion': ['gini', 'entropy', 'log_loss'],
+        'max_depth': [None, 10, 20, 50],
+        'min_samples_split': [1, 2, 4],
+        'bootstrap': [True, False]
+    }
 
-    # Predicting probabilities for train/test set
-    train_probs = rf_classifier.predict_proba(X_train)
-    test_probs = rf_classifier.predict_proba(X_test)
+    gs = GridSearchCV(
+        estimator=estimator,
+        param_grid=params,
+        scoring='f1_macro',
+        refit=True,
+        n_jobs=-1,
+        cv=cv,
+        return_train_score=True,
+        verbose=10
+    )
 
-    return train_probs, test_probs, y_train, y_test
+    # 6d. Run gridsearch
+    gs.fit(X_train, y_train)
+
+    # 6e. Save results
+    results = gs.cv_results_
+    keys = [k for k, v in results.items() if k.startswith('split')]
+    for x in keys:
+        del results[x]
+
+    results_df = pd.DataFrame().from_dict(results)
+    print("\nBEST PARAMS:\n")
+    print(gs.best_params_)
+
+    classifier = gs.best_estimator_
+    train_probs = classifier.predict_proba(X_train)
+    test_probs = classifier.predict_proba(X_test)
+
+    return train_probs, test_probs, y_train, y_test, results_df, gs.best_params_, gs.best_score_, classifier
+    # rf_classifier = RandomForestClassifier(n_estimators=1000, random_state=seed) # TODO: vary hyperparameters
+    # rf_classifier.fit(X_train, y_train)
+
+    # # Predicting probabilities for train/test set
+    # train_probs = rf_classifier.predict_proba(X_train)
+    # test_probs = rf_classifier.predict_proba(X_test)
+
+    # return train_probs, test_probs, y_train, y_test
 
 def plot_metrics(train_probs, test_probs, y_train, y_test, use_test=True, class_ids=CLASS_IDS, save_fig=True):
     if not use_test:
@@ -355,21 +413,109 @@ def plot_binary_metrics(train_probs, test_probs, y_train, y_test, use_test=True,
     else:
         plt.show()
 
+def plot_gs_metrics(train_probs, test_probs, y_train, y_test, use_test=True, class_ids=CLASS_IDS, save_fig=True):
+    if not use_test:
+        y_test = y_train
+        test_probs = train_probs
+    
+    y_test = label_binarize(y_test, classes=np.arange(N_CLASSES))
+
+    fpr, tpr, roc_auc = dict(), dict(), dict()
+
+    # Compute micro-average ROC curve and ROC area
+    fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(), test_probs.ravel())
+    roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
+
+    for i in range(N_CLASSES):
+        fpr[i], tpr[i], _ = roc_curve(y_test[:, i], test_probs[:, i])
+        roc_auc[i] = auc(fpr[i], tpr[i])
+
+    fpr_grid = np.linspace(0.0, 1.0, 1000)
+
+    # Interpolate all ROC curves at these points
+    mean_tpr = np.zeros_like(fpr_grid)
+
+    for i in range(N_CLASSES):
+        mean_tpr += np.interp(fpr_grid, fpr[i], tpr[i])  # linear interpolation
+
+    # Average it and compute AUC
+    mean_tpr /= N_CLASSES
+
+    fpr["macro"] = fpr_grid
+    tpr["macro"] = mean_tpr
+    roc_auc["macro"] = auc(fpr["macro"], tpr["macro"])
+
+    # create plot 1
+    _, ax = plt.subplots(figsize=(9, 9))
+
+    plt.plot(
+        fpr["micro"],
+        tpr["micro"],
+        label=f"micro-average ROC curve (AUC = {roc_auc['micro']:.2f})",
+        color="deeppink",
+        linestyle=":",
+        linewidth=4,
+    )
+
+    plt.plot(
+        fpr["macro"],
+        tpr["macro"],
+        label=f"macro-average ROC curve (AUC = {roc_auc['macro']:.2f})",
+        color="navy",
+        linestyle=":",
+        linewidth=4,
+    )
+
+    colors = cycle(sns.color_palette())
+    for i, color, class_id in zip(range(N_CLASSES), colors, class_ids):
+        RocCurveDisplay.from_predictions(
+            y_test[:, i],
+            test_probs[:, i],
+            name=f"ROC curve for {class_id}",
+            color=color,
+            ax=ax,
+            plot_chance_level=(i == N_CLASSES - 1),
+        )
+
+    _ = ax.set(
+        xlabel="False Positive Rate",
+        ylabel="True Positive Rate",
+        title=f"One-vs-Rest ROC Curves: {OUTCOME} (Train/test split: {y_train.shape[0]}/{TEST_SIZE})",
+    )
+    # save plot 1
+    if save_fig: 
+        plt.savefig(f'{OUTPUT_DIR}/roc_curve.png')
+    else:
+        plt.show()
+
+    # create plot 2
+    true_labels = np.argmax(y_test, axis=1)
+    predicted_labels = np.argmax(test_probs, axis=1)
+    conf_matrix = confusion_matrix(true_labels, predicted_labels)
+    accuracy = accuracy_score(true_labels, predicted_labels)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='viridis', cbar=False, xticklabels=class_ids, yticklabels=class_ids)
+    plt.xlabel('Predicted labels')
+    plt.ylabel('True labels')
+    plt.title(f'Confusion Matrix: {OUTCOME} (Train/test split: {y_train.shape[0]}/{TEST_SIZE})\nOverall Accuracy = {accuracy*100:.2f}%')
+    
+    if save_fig:
+        plt.savefig(f'{OUTPUT_DIR}/confusion_matrix.png')
+    else:
+        plt.show()
+
 #%%
 X_train_df, y_train, X_test_df, y_test = prep_data()
-
-if N_CLASSES > 2:
-    plot_train_test_split(np.argmax(y_train, axis=1), np.argmax(y_test, axis=1))
-else:
-    plot_train_test_split(y_train, y_test)
+plot_train_test_split(y_train, y_test)
 
 final_selected_features, final_selected_feature_ranks = feature_selection(X_train_df, y_train)
 plot_corr_matrix(X_train_df[final_selected_features])
 
-train_probs, test_probs, y_train, y_test = run_model(X_train_df, y_train, X_test_df, y_test, final_selected_features)
+# train_probs, test_probs, y_train, y_test = run_model(X_train_df, y_train, X_test_df, y_test, final_selected_features)
+train_probs, test_probs, y_train, y_test, results_df, best_params, best_score, classifier = run_model(X_train_df, y_train, X_test_df, y_test, final_selected_features)
 
 if N_CLASSES > 2:
-    plot_metrics(train_probs, test_probs, y_train, y_test)
+    plot_gs_metrics(train_probs, test_probs, y_train, y_test)
 else:
     plot_binary_metrics(train_probs, test_probs, y_train, y_test)
 # %%
