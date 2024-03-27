@@ -12,7 +12,7 @@ from utils import count_subjects, get_subset_scan_counts
 
 setup()
 
-df = pd.read_csv('data/radiomics/features/features_wide.csv')
+df = pd.read_csv('data/radiomics/features3/features_wide.csv')
 
 # %%
 _, _, have_df = count_subjects(drop_by_outcome=False)

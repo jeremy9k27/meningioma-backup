@@ -14,7 +14,7 @@ from preprocessing.utils import lsdir
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-def get_data(features_file='data/radiomics/features3/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', test_size=9, seed=42, even_test_split=False):
+def get_data(features_file='data/radiomics/features4/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', test_size=9, seed=42, even_test_split=False):
     features = pd.read_csv(features_file)
     labels = pd.read_csv(labels_file)
     labels = labels.dropna(subset=[outcome])

@@ -56,16 +56,32 @@ import pandas as pd
 setup()
 
 OUTCOME = 'MethylationSubgroup' # 'MethylationSubgroup' or 'Chr1p' or 'Chr22q' or 'Chr9p' or 'TERT'
-CLASS_IDS = ['Merlin Intact', 'Immune Enriched', 'Hypermetabolic'] # ['Intact', 'Loss'] or ['Merlin Intact', 'Immune Enriched', 'Hypermetabolic']
+if OUTCOME == 'MethylationSubgroup':
+    CLASS_IDS = ['Merlin Intact', 'Immune Enriched', 'Hypermetabolic']
+else:
+    CLASS_IDS = ['Intact', 'Loss']
 N_CLASSES = len(CLASS_IDS)
-TEST_SIZE = 12
+TEST_SIZE = 18
 SEED = 1
 MULTIPLE_IMPUTATION = False # Kernel keeps crashing..! OOM? or try mice package later
-USE_SMOTE = False
-OUTPUT_DIR = f'data/radiomics/evaluations/{OUTCOME}_TestSize-{TEST_SIZE}_Seed-{SEED}_MultImpute-{MULTIPLE_IMPUTATION}_SMOTE-{USE_SMOTE}'
+USE_SMOTE = True
+SCALER = 'Standard'
+
+if USE_SMOTE: assert SCALER is not None, "Must specify a scaler when using SMOTE"
+
+if SCALER == 'Standard':
+    SCALER_OBJ = StandardScaler()
+elif SCALER == 'MinMax':
+    SCALER_OBJ = MinMaxScaler()
+else:
+    SCALER_OBJ = None
+
+EVEN_TEST_SPLIT = False
+
+OUTPUT_DIR = f'data/radiomics/evaluations4/{OUTCOME}_TestSize-{TEST_SIZE}_Seed-{SEED}_MultImpute-{MULTIPLE_IMPUTATION}_SMOTE-{USE_SMOTE}_EvenTestSplit-{EVEN_TEST_SPLIT}_Scaler-{SCALER}'
 if not os.path.exists(OUTPUT_DIR): os.makedirs(OUTPUT_DIR)
 
-def prep_data(outcome=OUTCOME, test_size=TEST_SIZE, seed=SEED, even_test_split=USE_SMOTE, multiple_imputation=MULTIPLE_IMPUTATION):
+def prep_data(outcome=OUTCOME, test_size=TEST_SIZE, seed=SEED, even_test_split=EVEN_TEST_SPLIT, multiple_imputation=MULTIPLE_IMPUTATION):
     train_df, test_df = get_data(outcome=outcome, test_size=test_size, seed=seed, even_test_split=even_test_split)
     if multiple_imputation:
         X_train_df = train_df.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
@@ -92,10 +108,9 @@ def prep_data(outcome=OUTCOME, test_size=TEST_SIZE, seed=SEED, even_test_split=U
     X_train_df = X_train_df.dropna(axis=1, how='all')
     X_test_df = X_test_df[X_train_df.columns]
 
-    if USE_SMOTE:
-        scaler = MinMaxScaler()
-        X_train_df = pd.DataFrame(scaler.fit_transform(X_train_df), columns=X_train_df.columns)
-        X_test_df = pd.DataFrame(scaler.transform(X_test_df), columns=X_test_df.columns)
+    if SCALER:
+        X_train_df = pd.DataFrame(SCALER_OBJ.fit_transform(X_train_df), columns=X_train_df.columns)
+        X_test_df = pd.DataFrame(SCALER_OBJ.transform(X_test_df), columns=X_test_df.columns)
     
     return X_train_df, y_train, X_test_df, y_test
 
@@ -359,7 +374,6 @@ def plot_binary_metrics(train_probs, test_probs, y_train, y_test, use_test=True,
     fpr, tpr, _ = roc_curve(y_test, test_probs[:, 1])
     roc_auc = auc(fpr, tpr)
 
-    plt.subplot(1, 2, 2)
     plt.plot(fpr, tpr, color='tab:orange', lw=2, label=f'AUC = {roc_auc:.2f}')
     plt.plot([0, 1], [0, 1], color='tab:blue', lw=2, linestyle='--')
     plt.xlim([0.0, 1.0])
@@ -374,6 +388,7 @@ def plot_binary_metrics(train_probs, test_probs, y_train, y_test, use_test=True,
         plt.savefig(f'{OUTPUT_DIR}/roc_curve.png')
     else:
         plt.show()
+    plt.close()
 
     predicted_labels = np.argmax(test_probs, axis=1)
     conf_matrix = confusion_matrix(y_test, predicted_labels)
@@ -389,6 +404,7 @@ def plot_binary_metrics(train_probs, test_probs, y_train, y_test, use_test=True,
         plt.savefig(f'{OUTPUT_DIR}/confusion_matrix.png')
     else:
         plt.show()
+    plt.close()
 
     metrics = {
         'AUC': roc_auc,
@@ -412,6 +428,7 @@ def plot_binary_metrics(train_probs, test_probs, y_train, y_test, use_test=True,
         plt.savefig(f'{OUTPUT_DIR}/metrics_table.png')
     else:
         plt.show()
+    plt.close()
 
 def plot_gs_metrics(train_probs, test_probs, y_train, y_test, use_test=True, class_ids=CLASS_IDS, save_fig=True):
     if not use_test:
