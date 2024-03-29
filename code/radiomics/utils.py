@@ -55,6 +55,29 @@ def get_data(features_file='data/radiomics/features4/features_wide.csv', labels_
     return train_df, test_df
 
 def count_subjects(labels_file='data/labels/MeningiomaBiomarkerData.csv', mri_dir='data/preprocessing/output/7_COMPLETED_PREPROCESSED', segs_dir='data/segmentations', outcome='MethylationSubgroup', verbose=False, drop_by_outcome=True):
+    """
+    Given a labels file, MRI directory, segmentations directory, and outcome variable (prediction task), this function returns: 
+    * the number of subjects with MRI data & biomarker data;
+    * the number of subjects with MRI data + biomarker data + segmentations; 
+    * and a dataframe with the labels of the subjects with MRI data, segmentations and labels.
+
+    The outcome variable is only important if drop_by_outcome is True (or if verbose is True).
+    
+    Parameters
+    ----------
+    labels_file : str
+        The path to the labels file.
+    mri_dir : str
+        The path to the MRI directory.
+    segs_dir : str
+        The path to the segmentations directory.
+    outcome : str
+        The outcome variable of interest. Only used if drop_by_outcome is True.
+    verbose : bool
+        Whether to print the value counts of the outcome variable.
+    drop_by_outcome : bool
+        Whether to drop subjects with missing values in the outcome variable of interest (corresponds to True), or just drop subjects who have NaN across all outcomes (corresponds to False). By default, drop_by_outcome=True.
+    """
     labels = pd.read_csv(labels_file)
     mri_subjects = lsdir(mri_dir)
     segmentations = [f for f in os.listdir(segs_dir) if f.startswith('Segmentation')]

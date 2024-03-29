@@ -48,13 +48,19 @@ def get_scan_dict(data_dir, dir_of_interest=''):
     return scan_counts
 
 def setup():
-    """Author: Lawrence Chillrud"""
+    """
+    Ensures that the current working directory is the Meningioma directory.
+    Author: Lawrence Chillrud
+    """
     if not os.getcwd().endswith('Meningioma'): os.chdir('../..')
     if not os.getcwd().endswith('Meningioma'): 
         raise Exception('Please run this script from the Menigioma directory')
 
 def lsdir(path):
-    """Author: Lawrence Chillrud"""
+    """
+    Returns a list of all the immediate subdirectories of a given path.
+    Author: Lawrence Chillrud
+    """
     return sorted([d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))])
 
 def read_example_mri(data_dir='data/preprocessing/output/2_NIFTI', subject='6', session='6_Brainlab', scan='12-AX_3D_T1_POST', ants=True, orientation='IAL'):
