@@ -1,8 +1,7 @@
 # File: utils.py
 # Date: 03/15/2024
 # Author: Lawrence Chillrud <chili@u.northwestern.edu>
-# Description:
-
+# Description: Helper functions for the radiomics arm of the meningioma project.
 import sys
 import os
 
@@ -13,16 +12,94 @@ if parent_dir not in sys.path:
 from preprocessing.utils import lsdir
 import pandas as pd
 from sklearn.model_selection import train_test_split
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import MinMaxScaler
 
-def get_data(features_file='data/radiomics/features4/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', test_size=9, seed=42, even_test_split=False):
+def plot_train_test_split(y_train, y_test, output_dir=None, class_ids=None):
+    """
+    Bar graph showing the number of samples per class in the training and testing sets. Called at the end of get_data() below.
+    """
+    unique_classes = np.unique(np.concatenate((y_train, y_test)))
+    train_counts_array = [np.sum(y_train == uc) for uc in unique_classes]
+    test_counts_array = [np.sum(y_test == uc) for uc in unique_classes]
+    combined_counts_array = pd.DataFrame({'Training': train_counts_array, 'Testing': test_counts_array}, index=unique_classes)
+    
+    fig, ax = plt.subplots()
+    bar_width = 0.35
+    index = np.arange(len(unique_classes))
+
+    # Plotting the training bars
+    train_bars = ax.bar(index - bar_width/2, combined_counts_array['Training'], bar_width, label='Training', color='tab:blue')
+
+    # Plotting the testing bars
+    test_bars = ax.bar(index + bar_width/2, combined_counts_array['Testing'], bar_width, label='Testing', color='tab:orange')
+
+    # Adding the bar labels
+    ax.bar_label(train_bars, padding=3)
+    ax.bar_label(test_bars, padding=3)
+
+    # Setting the rest of the plot
+    ax.set_xlabel('Class')
+    ax.set_xticks(index)
+    ax.set_xticklabels(class_ids if class_ids else unique_classes)
+    ax.set_ylabel('Number of Samples')
+    ax.set_title(f'Train/Test Samples per Class ({len(y_train)}/{len(y_test)} split)')
+    ax.legend(title='Dataset')
+
+    plt.tight_layout()
+
+    # Save figure or show it
+    if output_dir is not None:
+        plt.savefig(f'{output_dir}/train_test_split.png')
+    else:
+        plt.show()
+    plt.close()
+
+def get_data(features_file='data/radiomics/features4/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', test_size=9, seed=42, even_test_split=False, scaler_obj=None, output_dir=None):
+    """
+    Prepares training and testing data split for the meningioma project. 
+    Implements 0 imputation of NaNs and scales data if scaler_obj is specified (no data leakage during scaling step). 
+    Plots bar graph of the split. Prints training/testing feature matrix shapes.
+
+    Parameters
+    ----------
+    features_file : str
+        The path to the features csv file.
+    labels_file : str
+        The path to the labels csv file.
+    outcome : str
+        The prediction task variable of interest. By default, outcome='MethylationSubgroup'.
+    test_size : float or int
+        If float, should be between 0.0 and 1.0 and represent the proportion of the dataset to include in the test split. If int, represents the absolute number of test samples. By default, test_size=9.
+    seed : int
+        The random seed for reproducibility. By default, seed=42.
+    even_test_split : bool
+        Whether the test should should have an even class split. By default, even_test_split=False, in which case the test set has the same class proportionality as the overall dataset.
+    scaler_obj : object
+        A scaler object to scale the data. By default, scaler_obj=None. E.g., StandardScaler(), MinMaxScaler(), etc.
+    output_dir : str
+        The path to the output directory where the train/test split plot will be saved. By default, output_dir=None, in which case the plot is shown but not saved.
+    
+    Returns
+    -------
+    train_df : pd.DataFrame
+        The training data.
+    test_df : pd.DataFrame
+        The testing data.
+    """
+    # read in features and labels, merge
     features = pd.read_csv(features_file)
     labels = pd.read_csv(labels_file)
     labels = labels.dropna(subset=[outcome])
     labels = labels[labels['Subject Number'].isin(features['Subject Number'])]
     data = features.merge(labels, on='Subject Number')
-    if not even_test_split:
+
+    # split data into training and test sets
+    if not even_test_split: # preserve class proportions
         train_df, test_df = train_test_split(data, test_size=test_size, random_state=seed, stratify=data[outcome])
-    else:
+    else: # ensure an even class split in the test set
         unique_classes = data[outcome].unique()
         train_dfs = []
         test_dfs = []
@@ -51,8 +128,71 @@ def get_data(features_file='data/radiomics/features4/features_wide.csv', labels_
         # Combine the training and test sets
         train_df = pd.concat(train_dfs).sample(frac=1, random_state=seed).reset_index(drop=True)
         test_df = pd.concat(test_dfs).sample(frac=1, random_state=seed).reset_index(drop=True)
-            
-    return train_df, test_df
+    
+    # drop columns that are missing all values
+    train_df = train_df.dropna(axis=1, how='all')
+    test_df = test_df[train_df.columns]
+
+    # impute missing values with 0
+    train_df = train_df.fillna(0)
+    test_df = test_df.fillna(0)
+
+    # separate features and labels
+    X_train_df = train_df.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
+    y_train = train_df[outcome].values.astype(int)
+    X_test_df = test_df.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
+    y_test = test_df[outcome].values.astype(int)
+
+    # scale data if specified
+    if scaler_obj is not None:
+        X_train_df = pd.DataFrame(scaler_obj.fit_transform(X_train_df), columns=X_train_df.columns)
+        X_test_df = pd.DataFrame(scaler_obj.transform(X_test_df), columns=X_test_df.columns)
+
+    # plot the split of the data
+    class_ids = ['Intact', 'Loss']
+    if outcome == 'MethylationSubgroup': class_ids = ['Merlin Intact', 'Immune Enriched', 'Hypermetabolic']
+    plot_train_test_split(y_train, y_test, output_dir=output_dir, class_ids=class_ids)
+
+    # print the shape of the training features
+    print(f"Training features matrix shape (n_samples x n_features): {X_train_df.shape}")
+    print(f"Testing features matrix shape (n_samples x n_features): {X_test_df.shape}")
+    
+    return X_train_df, y_train, X_test_df, y_test
+
+def clean_feature_names(strings):
+    """Tidies up the feature names by removing specified substrings and replacing them with ""."""
+    replacements = [
+        "Mod-AX_3D_", "Mod-SAG_3D_", "_POST", "Mod-AX_", "SegLab-", "Feat-original_"
+    ]
+    
+    # Replace specified substrings with ""
+    replaced_strings = []
+    for string in strings:
+        for r in replacements:
+            string = string.replace(r, "")
+        # Replace "DIFFUSION" with "DWI"
+        string = string.replace("DIFFUSION", "DWI")
+        replaced_strings.append(string)
+        
+    return replaced_strings
+
+def plot_corr_matrix(X, outcome='?', test_size='?', output_dir=None):
+    """Plots the correlation matrix of the radiomics training features."""
+    normalizer = MinMaxScaler()
+    X_normalized = pd.DataFrame(normalizer.fit_transform(X), columns=X.columns)
+    corr_matrix = X_normalized.corr()
+    clean_names = clean_feature_names(X.columns)
+    plt.figure(figsize=(24, 20))
+    sns.heatmap(corr_matrix, annot=False, fmt=".2f", cmap="viridis", xticklabels=clean_names, yticklabels=clean_names)
+    plt.xticks(rotation=45, ha='right')
+    plt.yticks(rotation=45, va='top')
+    plt.title(f"Top Radiomics Features Correlation Matrix: {outcome} (Train/test split: {X.shape[0]}/{test_size})")
+    plt.tight_layout()
+    if output_dir is not None:
+        plt.savefig(f'{output_dir}/correlation_matrix.png')
+    else:
+        plt.show()
+    plt.close()
 
 def count_subjects(labels_file='data/labels/MeningiomaBiomarkerData.csv', mri_dir='data/preprocessing/output/7_COMPLETED_PREPROCESSED', segs_dir='data/segmentations', outcome='MethylationSubgroup', verbose=False, drop_by_outcome=True):
     """
@@ -101,7 +241,7 @@ def count_subjects(labels_file='data/labels/MeningiomaBiomarkerData.csv', mri_di
 
 def get_subset_scan_counts(subjects, data_dir='data/preprocessing/output/7_COMPLETED_PREPROCESSED'):
     """
-    Author: Lawrence Chillrud
+    Returns counts of each scan type located within a folder.
 
     When data_dir is data/preprocessing/output/>=2, then dir_of_interest should be '', 
     otherwise, it should be 'ready_for_preprocessing' or 'ask_virginia'

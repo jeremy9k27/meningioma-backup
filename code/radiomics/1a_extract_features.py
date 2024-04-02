@@ -40,7 +40,7 @@ setup()
 MRI_DIR = 'data/preprocessing/output/7_COMPLETED_PREPROCESSED'
 SEGS_DIR = 'data/segmentations/'
 SEGS_PATHS = [f for f in os.listdir(SEGS_DIR) if f.startswith('Segmentation')]
-OUTPUT_DIR = 'data/radiomics/features4'
+OUTPUT_DIR = 'data/radiomics/features5'
 OUTPUT_FILE = f'{OUTPUT_DIR}/features.csv'
 LOG_FILE = f'{OUTPUT_DIR}/log.txt'
 MODALITIES = ['AX_3D_T1_POST', 'AX_DIFFUSION', 'AX_ADC', 'SAG_3D_FLAIR']
@@ -88,7 +88,7 @@ def extract_features(s, e):
     -------
     * Extraction is completed for each MRI modality & individual segmentation label present. So for example, if a subject has 3 MRI modalities and 4 segmentation labels, then 12 sets of ~101 features will be extracted.
     * Furthermore, for each modality feature extraction is performed on the union of all segmentation labels present as well, representing the whole tumor mask (this whole mask is given the label "22" to set it apart).
-    * Finally, when possible, for each modality feature extraction is performed on the union of the following segmentation label subsets [enhancing (1) + necrotic (3) = label 13, enhancing (1) + restricted diffusion (6) = label 16].
+    * Finally, when possible, for each modality feature extraction is performed on the union of the following segmentation label subsets [enhancing (1) + necrotic (3) = label 13, enhancing (1) + susceptibility (5) = label 15, enhancing (1) + restricted diffusion (6) = label 16, enhancing (1) + susceptibility (5) + restricted diffusion (6) = label 156].
     * Assumes that the MRI images are stored in the MRI_DIR directory and the segmentations are stored in the SEGS_DIR directory.
     * Saves the extracted features to the OUTPUT_FILE csv file.
     """
