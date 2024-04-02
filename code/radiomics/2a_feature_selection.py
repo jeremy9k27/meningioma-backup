@@ -23,7 +23,7 @@ if parent_dir not in sys.path:
 
 import numpy as np
 from imblearn.over_sampling import SMOTE
-from sklearn.model_selection import KFold, GridSearchCV, RepeatedStratifiedKFold
+from sklearn.model_selection import KFold, GridSearchCV, RepeatedStratifiedKFold, StratifiedKFold
 from sklearn.feature_selection import mutual_info_classif, SelectKBest
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import RFE
@@ -44,7 +44,7 @@ setup()
 FEAT_FILE = 'data/radiomics/features5/features_wide.csv'
 OUTCOME = 'MethylationSubgroup' # 'MethylationSubgroup' or 'Chr1p' or 'Chr22q' or 'Chr9p' or 'TERT'
 TEST_SIZE = 21
-SEED = 3
+SEED = 7
 USE_SMOTE = False
 SCALER = None # 'Standard' or 'MinMax' or None
 EVEN_TEST_SPLIT = False
@@ -98,14 +98,14 @@ def feature_selection(X, y, top_k=32):
         verbose=10
     )
 
-    gs.fit(X_train, y_train)
+    gs.fit(X_reduced, y)
 
     print("\tBest parameters from gridsearch: ", gs.best_params_)
     print("\tBest score from gridsearch: ", gs.best_score_)
 
     # Step 3: Cross-validation and recursive feature elimination
     print("Step 3/3: Performing cross-validation and recursive feature elimination...")
-    kf = KFold(n_splits=5, shuffle=True, random_state=SEED)
+    kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
     feature_ranks = []
     for train_index, test_index in tqdm(kf.split(X_reduced), total=kf.get_n_splits()):
         X_train, X_test = X_reduced[train_index], X_reduced[test_index]
