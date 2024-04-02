@@ -115,8 +115,12 @@ def extract_features(s, e):
     if 1 in all_seg_labels:
         if 3 in all_seg_labels:
             all_seg_labels.append(13)
+        if 5 in all_seg_labels:
+            all_seg_labels.append(15)
         if 6 in all_seg_labels:
             all_seg_labels.append(16)
+            if 5 in all_seg_labels:
+                all_seg_labels.append(156)
 
     all_seg_labels.append(22) # Add the whole tumor mask label
     
@@ -133,11 +137,23 @@ def extract_features(s, e):
                 mask = mask.astype(int) * 13
                 mask = np.logical_or(mask == 13, seg_arr == 3)
                 mask = mask.astype(int) * 13
+            elif lab == 15:
+                mask = np.logical_or(mask == 15, seg_arr == 1)
+                mask = mask.astype(int) * 15
+                mask = np.logical_or(mask == 15, seg_arr == 5)
+                mask = mask.astype(int) * 15
             elif lab == 16:
                 mask = np.logical_or(mask == 16, seg_arr == 1)
                 mask = mask.astype(int) * 16
                 mask = np.logical_or(mask == 16, seg_arr == 6)
                 mask = mask.astype(int) * 16
+            elif lab == 156:
+                mask = np.logical_or(mask == 156, seg_arr == 1)
+                mask = mask.astype(int) * 156
+                mask = np.logical_or(mask == 156, seg_arr == 5)
+                mask = mask.astype(int) * 156
+                mask = np.logical_or(mask == 156, seg_arr == 6)
+                mask = mask.astype(int) * 156
             else:
                 mask = np.logical_or(mask == lab, seg_arr == lab)
                 mask = mask.astype(int) * lab
