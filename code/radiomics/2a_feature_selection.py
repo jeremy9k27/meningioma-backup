@@ -37,6 +37,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
 import pandas as pd
+import joblib
 
 setup()
 
@@ -77,11 +78,10 @@ def feature_selection(X, y, top_k=32):
     cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=SEED)
     estimator = RandomForestClassifier()
     params = {
-        'n_estimators': [10, 25, 50, 75, 100, 150, 250, 500, 1000],
+        'n_estimators': [25, 50, 75, 100, 200],
         'criterion': ['gini', 'entropy', 'log_loss'],
-        'max_depth': [None, 5, 10, 15],
+        'max_depth': [None, 10, 20],
         'min_samples_split': [2, 4, 6],
-        'min_samples_leaf': [1, 2, 4],
         'max_features': ['sqrt', 'log2', None],
         'bootstrap': [True, False],
         'class_weight': [None, 'balanced', 'balanced_subsample']
@@ -92,13 +92,15 @@ def feature_selection(X, y, top_k=32):
         param_grid=params,
         scoring='f1_macro',
         refit=False,
-        n_jobs=-1,
+        n_jobs=4,
         cv=cv,
         return_train_score=True,
         verbose=10
     )
 
     gs.fit(X_reduced, y)
+
+    joblib.dump(gs, f'{OUTPUT_DIR}/gridsearch1_feature_selection.joblib')
 
     print("\tBest parameters from gridsearch: ", gs.best_params_)
     print("\tBest score from gridsearch: ", gs.best_score_)
@@ -148,11 +150,10 @@ def run_model(X_train_df, y_train, X_test_df, y_test, features):
     cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=SEED)
     estimator = RandomForestClassifier()
     params = {
-        'n_estimators': [10, 25, 50, 75, 100, 150, 250, 500, 1000],
+        'n_estimators': [25, 50, 75, 100, 200],
         'criterion': ['gini', 'entropy', 'log_loss'],
-        'max_depth': [None, 5, 10, 15],
+        'max_depth': [None, 10, 20],
         'min_samples_split': [2, 4, 6],
-        'min_samples_leaf': [1, 2, 4],
         'max_features': ['sqrt', 'log2', None],
         'bootstrap': [True, False],
         'class_weight': [None, 'balanced', 'balanced_subsample']
@@ -171,6 +172,7 @@ def run_model(X_train_df, y_train, X_test_df, y_test, features):
 
     # 6d. Run gridsearch
     gs.fit(X_train, y_train)
+    joblib.dump(gs, f'{OUTPUT_DIR}/gridsearch2_model.joblib')
 
     # 6e. Save results
     results = gs.cv_results_
