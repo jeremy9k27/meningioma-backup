@@ -57,6 +57,23 @@ def plot_train_test_split(y_train, y_test, output_dir=None, class_ids=None):
         plt.show()
     plt.close()
 
+def clean_feature_names(strings):
+    """Tidies up the feature names by removing specified substrings and replacing them with ""."""
+    replacements = [
+        "Mod-AX_3D_", "Mod-SAG_3D_", "_POST", "Mod-AX_", "SegLab-", "Feat-original_"
+    ]
+    
+    # Replace specified substrings with ""
+    replaced_strings = []
+    for string in strings:
+        for r in replacements:
+            string = string.replace(r, "")
+        # Replace "DIFFUSION" with "DWI"
+        string = string.replace("DIFFUSION", "DWI")
+        replaced_strings.append(string)
+        
+    return replaced_strings
+
 def get_data(features_file='data/radiomics/features4/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', test_size=9, seed=42, even_test_split=False, scaler_obj=None, output_dir=None):
     """
     Prepares training and testing data split for the meningioma project. 
@@ -95,7 +112,8 @@ def get_data(features_file='data/radiomics/features4/features_wide.csv', labels_
     labels = labels.dropna(subset=[outcome])
     labels = labels[labels['Subject Number'].isin(features['Subject Number'])]
     data = features.merge(labels, on='Subject Number')
-
+    data.columns = clean_feature_names(data.columns)
+    
     # split data into training and test sets
     if not even_test_split: # preserve class proportions
         train_df, test_df = train_test_split(data, test_size=test_size, random_state=seed, stratify=data[outcome])
@@ -156,25 +174,8 @@ def get_data(features_file='data/radiomics/features4/features_wide.csv', labels_
     # print the shape of the training features
     print(f"Training features matrix shape (n_samples x n_features): {X_train_df.shape}")
     print(f"Testing features matrix shape (n_samples x n_features): {X_test_df.shape}")
-    
-    return X_train_df, y_train, X_test_df, y_test
 
-def clean_feature_names(strings):
-    """Tidies up the feature names by removing specified substrings and replacing them with ""."""
-    replacements = [
-        "Mod-AX_3D_", "Mod-SAG_3D_", "_POST", "Mod-AX_", "SegLab-", "Feat-original_"
-    ]
-    
-    # Replace specified substrings with ""
-    replaced_strings = []
-    for string in strings:
-        for r in replacements:
-            string = string.replace(r, "")
-        # Replace "DIFFUSION" with "DWI"
-        string = string.replace("DIFFUSION", "DWI")
-        replaced_strings.append(string)
-        
-    return replaced_strings
+    return X_train_df, y_train, X_test_df, y_test
 
 def plot_corr_matrix(X, outcome='?', test_size='?', output_dir=None):
     """Plots the correlation matrix of the radiomics training features."""
