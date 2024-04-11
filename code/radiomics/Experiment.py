@@ -671,10 +671,12 @@ class Experiment:
 
         # Step 3: Fit final model using top k features from self.rfe_feat_ranking, varying k
         print("Step 3/3: Fitting final model for varying numbers of features...")
-        self._final_fit(X_train=X_train_df[self.rfe_feat_ranking], y_train=y_train, X_test=X_test_df[self.rfe_feat_ranking], y_test=y_test)
+        exp_results_df, probs_dict = self._final_fit(X_train=X_train_df[self.rfe_feat_ranking], y_train=y_train, X_test=X_test_df[self.rfe_feat_ranking], y_test=y_test)
         print("Final model fitting done!")
         print("Completed radiomics experiment! Exiting run method.")
 
+        return exp_results_df, probs_dict
+    
         # then it is simply about defining the model and param space, and running the experiment for each one
         # look thru results of each pairing for model with highest validation accuracy (pretend u dont have test set results)
         
