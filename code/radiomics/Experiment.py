@@ -320,7 +320,7 @@ class Experiment:
         else:
             kf = RepeatedStratifiedKFold(n_splits=5, n_repeats=5, random_state=self.seed)
             clf = self.feat_select_model.model(**gs.best_params_, random_state=self.seed)
-            rfecv = RFECV(estimator=clf, min_features_to_select=1, step=len(X.shape[1])//self.rfe_step_size, cv=kf, scoring='f1_macro', verbose=3, n_jobs=4)
+            rfecv = RFECV(estimator=clf, min_features_to_select=1, step=X.shape[1]//self.rfe_step_size, cv=kf, scoring='f1_macro', verbose=3, n_jobs=4)
             rfecv.fit(X, y)
             print("\tRFECV done!")
             print("\tOptimal number of features: ", rfecv.n_features_)
