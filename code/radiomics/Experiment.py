@@ -652,6 +652,7 @@ class Experiment:
             scaler_obj=self.scaler_obj, 
             output_dir=self.output_dir
         )
+        # TODO: fix data indexing problems!!
         self.train_subjects_df = pd.DataFrame({'subject_num': list(X_train_df.index), 'true_label': y_train})
         self.test_subjects_df = pd.DataFrame({'subject_num': list(X_test_df.index), 'true_label': y_test})
         self.train_subjects_df.to_csv(f"{self.output_dir}/train_subjects.csv", index=False)
