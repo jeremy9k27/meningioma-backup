@@ -35,13 +35,15 @@ class TextureAnalysisModel:
                 'C': [0.1, 1, 10, 100, 1000],
                 'kernel': ['linear', 'poly', 'rbf', 'sigmoid'],
                 'gamma': ['scale', 'auto'],
-                'class_weight': ['balanced']
+                'class_weight': ['balanced'],
+                'probability': [True]
             }
             self.params_small = {
                 'C': [1],
                 'kernel': ['linear'],
                 'gamma': ['scale', 'auto'],
-                'class_weight': ['balanced']
+                'class_weight': ['balanced'],
+                'probability': [True]
             }
         elif self.name == 'XGBoost':
             self.model = XGBClassifier

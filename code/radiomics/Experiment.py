@@ -285,7 +285,7 @@ class Experiment:
         else:
             cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=self.seed)
             estimator = self.feat_select_model.model()
-            params = self.feat_select_model.params_small
+            params = self.feat_select_model.params_big
 
             gs = GridSearchCV(
                 estimator=estimator,
@@ -295,7 +295,7 @@ class Experiment:
                 n_jobs=4,
                 cv=cv,
                 return_train_score=True,
-                verbose=10
+                verbose=1
             )
 
             gs.fit(X, y)
@@ -320,7 +320,7 @@ class Experiment:
         else:
             kf = RepeatedStratifiedKFold(n_splits=5, n_repeats=5, random_state=self.seed)
             clf = self.feat_select_model.model(**gs.best_params_, random_state=self.seed)
-            rfecv = RFECV(estimator=clf, min_features_to_select=1, step=X.shape[1]//self.rfe_step_size, cv=kf, scoring='f1_macro', verbose=3, n_jobs=4)
+            rfecv = RFECV(estimator=clf, min_features_to_select=1, step=X.shape[1]//self.rfe_step_size, cv=kf, scoring='f1_macro', verbose=0, n_jobs=4)
             rfecv.fit(X, y)
             print("\tRFECV done!")
             print("\tOptimal number of features: ", rfecv.n_features_)
@@ -581,7 +581,7 @@ class Experiment:
             else:
                 cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=self.seed)
                 estimator = self.final_clf_model.model()
-                params = self.final_clf_model.params_small
+                params = self.final_clf_model.params_big
 
                 gs = GridSearchCV(
                     estimator=estimator,
@@ -591,7 +591,7 @@ class Experiment:
                     n_jobs=4,
                     cv=cv,
                     return_train_score=True,
-                    verbose=10
+                    verbose=1
                 )
 
                 gs.fit(X_train_k, y_train)
@@ -624,7 +624,7 @@ class Experiment:
             overall_experiment_results_line = pd.DataFrame({'Final_model': [self.final_clf_model.name], 'FeatSelect_model': [self.feat_select_model.name], 'Num_feats': [self.current_k], 'Train_score': [train_set_roc_auc_score], 'Val_score': [gs.best_score_], 'Test_score': [test_set_roc_auc_score], 'Best_final_params': [str(gs.best_params_)]})
             if self.save:
                 print("\t\tSaving further results to file...")
-                if os.file.exists(self.results_summary_file):
+                if os.path.exists(self.results_summary_file):
                     overall_experiment_results_line.to_csv(self.results_summary_file, mode='a', header=False, index=False)
                 else:
                     overall_experiment_results_line.to_csv(self.results_summary_file, mode='w', index=False)
@@ -666,7 +666,7 @@ class Experiment:
 
         # Step 2: Recursive Feature Elimination
         print("Step 2/3: Recursive Feature Elimination...")
-        X_reduced = X_train_df[self.uni_all_feats]
+        X_reduced = X_train_df[list(self.uni_all_feats)]
         self.rfe_feat_ranking = self._rfe_step(X_reduced, y_train)
         print("Recursive Feature Elimination done!")
 
