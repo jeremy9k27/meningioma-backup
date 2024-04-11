@@ -11,9 +11,9 @@
 #   * data/segmentations/*
 #
 # This script generates the following file(s) as outputs:
-#   * data/radiomics/features4/features.csv
-#   * data/radiomics/features4/features_wide.csv
-#   * data/radiomics/features4/log.txt
+#   * data/radiomics/features6/features.csv
+#   * data/radiomics/features6/features_wide.csv
+#   * data/radiomics/features6/log.txt
 
 # Package imports
 import sys
@@ -40,7 +40,7 @@ setup()
 MRI_DIR = 'data/preprocessing/output/7_COMPLETED_PREPROCESSED'
 SEGS_DIR = 'data/segmentations/'
 SEGS_PATHS = [f for f in os.listdir(SEGS_DIR) if f.startswith('Segmentation')]
-OUTPUT_DIR = 'data/radiomics/features5'
+OUTPUT_DIR = 'data/radiomics/features6'
 OUTPUT_FILE = f'{OUTPUT_DIR}/features.csv'
 LOG_FILE = f'{OUTPUT_DIR}/log.txt'
 MODALITIES = ['AX_3D_T1_POST', 'AX_DIFFUSION', 'AX_ADC', 'SAG_3D_FLAIR']

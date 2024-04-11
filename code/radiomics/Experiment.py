@@ -16,9 +16,10 @@ from tqdm import tqdm
 import pandas as pd
 import joblib
 import os
+from Models import TextureAnalysisModel
 
 class Experiment:
-    def __init__(self, prediction_task, test_size, seed, use_smote=False, scaler=None, even_test_split=False, rfe_step_size=32, output_dir='evaluations6', save=True):
+    def __init__(self, prediction_task, test_size, seed, feature_selection_model='RandomForest', final_classifier_model='RandomForest', use_smote=False, scaler=None, even_test_split=False, rfe_step_size=32, output_dir='data/radiomics/evaluations/debugging', save=True):
         """
         Initialize the experiment with the provided settings. 
         
@@ -31,6 +32,8 @@ class Experiment:
         self.prediction_task = prediction_task
         self.test_size = test_size
         self.seed = seed
+        self.feat_select_model = TextureAnalysisModel(name=feature_selection_model)
+        self.final_clf_model = TextureAnalysisModel(name=final_classifier_model)
         self.use_smote = use_smote
         self.scaler = scaler
         self.even_test_split = even_test_split
@@ -38,21 +41,25 @@ class Experiment:
         self.save = save
 
         # Settings we don't typically need to change
-        self.exp_name = f"{prediction_task}_TestSize-{test_size}_Seed-{seed}_SMOTE-{use_smote}_Scaler-{scaler}_EvenTestSplit-{even_test_split}"
-        self.feat_file = f"data/radiomics/features5/features_wide.csv"
+        self.exp_name = f"Scaler-{scaler}_SMOTE-{use_smote}_EvenTestSplit-{even_test_split}"
+        self.feat_file = f"data/radiomics/features6/features_wide.csv"
         
         # Setting up the output directories
-        self.output_dir = f"data/radiomics/evaluations/{output_dir}/{self.exp_name}"
+        self.output_dir = f"{output_dir}/{prediction_task}_TestSize-{test_size}/Seed-{seed}/{self.exp_name}"
         if not os.path.exists(self.output_dir) and save: os.makedirs(self.output_dir)
+
         self.output_univariate_fs = f"{self.output_dir}/univariate_fs"
         if not os.path.exists(self.output_univariate_fs) and save: os.makedirs(self.output_univariate_fs)
-        self.output_rfe_fs = f"{self.output_dir}/rfe_fs"
+
+        self.output_rfe_fs = f"{self.output_dir}/rfe_fs/{feature_selection_model}"
         if not os.path.exists(self.output_rfe_fs) and save: os.makedirs(self.output_rfe_fs)
-        self.output_final_model = f"{self.output_dir}/final_model"
+
+        self.output_final_model = f"{self.output_dir}/final_model/featselect-{feature_selection_model}_finalmodel-{final_classifier_model}"
         if not os.path.exists(self.output_final_model) and save: os.makedirs(self.output_final_model)
 
         # Automatically generated settings
         self.gs_summary_file = f"{self.output_dir}/gridsearch_summary.csv"
+        self.results_summary_file = f"{self.output_dir}/results_summary.csv"
         if self.prediction_task == 'MethylationSubgroup':
             self.class_ids = ['Merlin Intact', 'Immune Enriched', 'Hypermetabolic']
         else:
@@ -196,7 +203,7 @@ class Experiment:
             # We will start with mutual information, which needs multiple runs to combat its sensitivity to random seed
             # We will run MI 20 times and take the mean of the scores.
             num_MI_runs = 20
-            print(f"\tRunning MI {num_MI_runs} times to get a more robust estimate of feature importance...")
+            print(f"\tSubstep 1/3: Running MI {num_MI_runs} times to get a more robust estimate of feature importance...")
             for i in tqdm(range(num_MI_runs)):
                 df = self._uni_fs(X, y, method=lambda X, y: mutual_info_classif(X=X, y=y, random_state=i), method_name=f'MI{i}')
                 if uni_df is None:
@@ -208,7 +215,7 @@ class Experiment:
             uni_df['MImean'] = uni_df[[f'MI{i}' for i in range(num_MI_runs)]].mean(axis=1)
             uni_df['MImean_rank'] = uni_df['MImean'].rank(ascending=False)
             uni_df['MIstd'] = uni_df[[f'MI{i}_rank' for i in range(num_MI_runs)]].std(axis=1)
-            print("\tMI done! Now plotting results and moving on to Chi2 and ANOVA...")
+            print("\tSubstep 2/3: MI done! Now plotting results and moving on to Chi2 and ANOVA...")
             # Let's plot the top 512 features by mean MI score
             self._plot_feat_ranks_scatter(uni_df, filename=f'{self.output_univariate_fs}/MI_scatter.png', top_k=512)
             self._plot_feat_ranks_line(uni_df, filename=f'{self.output_univariate_fs}/MI_line.png', top_k=512)
@@ -228,7 +235,7 @@ class Experiment:
             overall_uni_df['avg_rank'] = overall_uni_df[[col for col in overall_uni_df.columns if '_rank' in col]].mean(axis=1)
             overall_uni_df['std'] = overall_uni_df[[col for col in overall_uni_df.columns if '_rank' in col]].std(axis=1)
             overall_uni_df.sort_values(by='avg_rank', ascending=True, inplace=True)
-            print("\tChi2 and ANOVA done! Now saving and plotting results...")
+            print("\tSubstep 3/3: Chi2 and ANOVA done! Now saving and plotting results...")
 
             # Save and plot the overall univariate feature selection results
             if self.save: overall_uni_df.to_csv(f'{self.output_univariate_fs}/overall_feats.csv', index=False)
@@ -271,22 +278,14 @@ class Experiment:
         Performs recursive feature elimination using a RF classifier and saves the results.
         """
         # Gridsearch for a RF classifier to use during recursive feature elimination in next step
+        print("\tSubstep 1/2: Performing gridsearch for RF classifier to use during RFE step...")
         if os.path.exists(f"{self.output_rfe_fs}/pre_rfe_clf_gs.joblib"):
             gs = joblib.load(f"{self.output_rfe_fs}/pre_rfe_clf_gs.joblib")
-            print("\tGridsearch results loaded from file.")
+            print("\tGridsearch looks like it was already done, so results were loaded from the pre-existing file!")
         else:
-            print("\tPerforming gridsearch for RF classifier to use during RFE step...")
             cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=self.seed)
-            estimator = RandomForestClassifier()
-            params = {
-                'n_estimators': [25, 50, 75, 100, 200],
-                'criterion': ['gini', 'entropy', 'log_loss'],
-                'max_depth': [None, 10, 20],
-                'min_samples_split': [2, 4, 6],
-                'max_features': ['sqrt', 'log2', None],
-                'bootstrap': [True],
-                'class_weight': ['balanced', 'balanced_subsample']
-            }
+            estimator = self.feat_select_model.model()
+            params = self.feat_select_model.params_small
 
             gs = GridSearchCV(
                 estimator=estimator,
@@ -302,8 +301,9 @@ class Experiment:
             gs.fit(X, y)
 
             if self.save: 
+                print("\tGridsearch done! Saving results to file...")
                 joblib.dump(gs, f"{self.output_rfe_fs}/pre_rfe_clf_gs.joblib")
-                gs_summary_line = pd.DataFrame({'GS_name': ['pre_rfe_clf_gs'], 'Num_feats': [X.shape[1]], 'Top_f1_macro': [gs.best_score_], 'Best_params': [str(gs.best_params_)]})
+                gs_summary_line = pd.DataFrame({'GS_name': ['pre_rfe_clf_gs'], 'Model_name': [f"FeatureSelection-{self.feat_select_model.name}"], 'Num_feats': [X.shape[1]], 'Top_f1_macro': [gs.best_score_], 'Best_params': [str(gs.best_params_)]})
                 if os.path.exists(self.gs_summary_file): 
                     gs_summary_line.to_csv(self.gs_summary_file, mode='a', header=False, index=False)
                 else:
@@ -313,29 +313,34 @@ class Experiment:
         print("\tBest score from pre RFE gridsearch: ", gs.best_score_)
 
         # Cross-validation and recursive feature elimination
+        print("\tSubstep 2/2: Performing cross-validated recursive feature elimination...")
         if os.path.exists(f"{self.output_rfe_fs}/rfecv.joblib"):
             rfecv = joblib.load(f"{self.output_rfe_fs}/rfecv.joblib")
-            print("\tRFECV results loaded from file.")
+            print("\tRFECV looks like it was already done, therefore results loaded from the pre-existing file!")
         else:
-            print("\tPerforming cross-validated recursive feature elimination...")
             kf = RepeatedStratifiedKFold(n_splits=5, n_repeats=5, random_state=self.seed)
-            clf = RandomForestClassifier(**gs.best_params_, random_state=self.seed)
+            clf = self.feat_select_model.model(**gs.best_params_, random_state=self.seed)
             rfecv = RFECV(estimator=clf, min_features_to_select=1, step=len(X.shape[1])//self.rfe_step_size, cv=kf, scoring='f1_macro', verbose=3, n_jobs=4)
             rfecv.fit(X, y)
+            print("\tRFECV done!")
+            print("\tOptimal number of features: ", rfecv.n_features_)
+            print("\tOptimal score: ", max(rfecv.cv_results_['mean_test_score']))
             if self.save: 
+                print("\tSaving results to file...")
                 joblib.dump(rfecv, f"{self.output_rfe_fs}/rfecv.joblib")
-                gs_summary_line = pd.DataFrame({'GS_name': ['rfe_cv'], 'Num_feats': [rfecv.n_features_], 'Top_f1_macro': [max(rfecv.cv_results_['mean_test_score'])], 'Best_params': [str(gs.best_params_)]})
+                gs_summary_line = pd.DataFrame({'GS_name': ['rfe_cv'], 'Model_name': [f"FeatureSelection-{self.feat_select_model.name}"], 'Num_feats': [rfecv.n_features_], 'Top_f1_macro': [max(rfecv.cv_results_['mean_test_score'])], 'Best_params': [str(gs.best_params_)]})
                 if os.path.exists(self.gs_summary_file): 
                     gs_summary_line.to_csv(self.gs_summary_file, mode='a', header=False, index=False)
                 else:
                     gs_summary_line.to_csv(self.gs_summary_file, mode='w', index=False)
         
-        print("\tOptimal number of features: ", rfecv.n_features_)
-        print("\tOptimal score: ", max(rfecv.cv_results_['mean_test_score']))
+        print("\tNow plotting RFECV results...")
         self._plot_rfecv_results(rfecv)
         sorted_feat_indices = np.argsort(rfecv.ranking_)
         sorted_feats = X.columns[sorted_feat_indices]
-        if self.save: pd.DataFrame({'RFE_feat_ranking': sorted_feats}).to_csv(f"{self.output_rfe_fs}/rfe_feat_ranking.csv", index=False)
+        if self.save: 
+            print("\tSaving sorted feature rankings to file...")
+            pd.DataFrame({'RFE_feat_ranking': sorted_feats}).to_csv(f"{self.output_rfe_fs}/rfe_feat_ranking.csv", index=False)
         return sorted_feats
 
     def _plot_confusion_matrix(self, y_true, y_pred):
@@ -346,10 +351,10 @@ class Experiment:
         sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='viridis', cbar=False, xticklabels=self.class_ids, yticklabels=self.class_ids)
         plt.xlabel('Predicted labels')
         plt.ylabel('True labels')
-        plt.title(f'Confusion Matrix: {self.prediction_task} (Train/test split: {self.train_subjects_df.shape[0]}/{self.test_size})\nOverall Accuracy = {accuracy*100:.2f}%')
+        plt.title(f'Confusion Matrix ({self.mode} set), Train/test split: {self.train_subjects_df.shape[0]}/{self.test_size}\nOverall Accuracy = {accuracy*100:.2f}%')
         
         if self.save:
-            plt.savefig(f'{self.output_final_model}/{self.current_k}feats_confusion_matrix.png')
+            plt.savefig(f'{self.output_final_model}/{self.current_k}feats_{self.mode}_confusion_matrix.png')
         else:
             plt.show()
         plt.close()
@@ -370,18 +375,18 @@ class Experiment:
 
         if self.save:
             # Save the metrics table
-            plt.savefig(f'{self.output_final_model}/{self.current_k}feats_test_set_metrics_table.png')
+            plt.savefig(f'{self.output_final_model}/{self.current_k}feats_{self.mode}_set_metrics_table.png')
             plt.close()
 
             # Save the metrics to the gs summary file
-            metrics_line = pd.DataFrame({'GS_name': [f'final_clf_test_set_performance_metrics'], 'Num_feats': [self.current_k], 'Top_f1_macro': [None], 'Best_params': [str(metrics)]})
+            metrics_line = pd.DataFrame({'GS_name': [f'final_clf_{self.mode}_set_performance_metrics'], 'Model_name': [f"FeatureSelection-{self.feat_select_model.name}_FinalModel-{self.final_clf_model.name}"], 'Num_feats': [self.current_k], 'Top_f1_macro': [None], 'Best_params': [str(metrics)]})
             if os.path.exists(self.gs_summary_file):
                 metrics_line.to_csv(self.gs_summary_file, mode='a', header=False, index=False)
             else:
                 metrics_line.to_csv(self.gs_summary_file, mode='w', index=False)
             
             # Save the metrics to their own csv file
-            metrics_df.to_csv(f'{self.output_final_model}/{self.current_k}feats_test_set_metrics.csv', index=False)
+            metrics_df.to_csv(f'{self.output_final_model}/{self.current_k}feats_{self.mode}_set_metrics.csv', index=False)
         else:
             plt.show()
             plt.close()
@@ -398,12 +403,12 @@ class Experiment:
         plt.ylim([0.0, 1.05])
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
-        plt.title(f'ROC Curve {self.prediction_task} (Train/test split: {self.train_subjects_df.shape[0]}/{self.test_size})')
+        plt.title(f'ROC Curve on {self.mode} set (Train/test split: {self.train_subjects_df.shape[0]}/{self.test_size})')
         plt.legend(loc="lower right")
         
         plt.tight_layout()
         if self.save:
-            plt.savefig(f'{self.output_final_model}/{self.current_k}feats_roc_curve.png')
+            plt.savefig(f'{self.output_final_model}/{self.current_k}feats_{self.mode}_roc_curve.png')
         else:
             plt.show()
         plt.close()
@@ -497,11 +502,11 @@ class Experiment:
         _ = ax.set(
             xlabel="False Positive Rate",
             ylabel="True Positive Rate",
-            title=f"One-vs-Rest ROC Curves: {self.prediction_task} (Train/test split: {self.train_subjects_df.shape[0]}/{self.test_size})",
+            title=f"One-vs-Rest ROC Curves: {self.prediction_task}, {self.mode} set (Train/test split: {self.train_subjects_df.shape[0]}/{self.test_size})",
         )
 
         if self.save: 
-            plt.savefig(f'{self.output_final_model}/{self.current_k}feats_roc_curve.png')
+            plt.savefig(f'{self.output_final_model}/{self.current_k}feats_{self.mode}_roc_curve.png')
         else:
             plt.show()
 
@@ -552,8 +557,8 @@ class Experiment:
         feat_set_sizes = [2**x for x in range(5, 11)] # 32 to 1024 by powers of 2
         train_probs_dict = {}
         test_probs_dict = {}
-        overall_experiment_results = pd.DataFrame(columns=['Num_feats', 'Train_score', 'Val_score', 'Test_score', 'Best_params'])
 
+        # Loop thru the different feature set sizes
         for i, k in enumerate(feat_set_sizes):
             # Select top k features
             self.current_k = k
@@ -564,27 +569,19 @@ class Experiment:
 
             # Smote
             if self.use_smote:
-                print(f"\tUsing SMOTE! Before SMOTE, X_train_k: {X_train_k.shape}, y_train: {y_train.shape}")
+                print(f"\t\tUsing SMOTE! Before SMOTE, X_train_k: {X_train_k.shape}, y_train: {y_train.shape}")
                 X_train_k, y_train = SMOTE(random_state=self.seed).fit_resample(X_train_k, y_train)
-                print(f"\tAfter SMOTE, X_train_k: {X_train_k.shape}, y_train: {y_train.shape}")
+                print(f"\t\tAfter SMOTE, X_train_k: {X_train_k.shape}, y_train: {y_train.shape}")
             
             # Gridsearch thru classifier
+            print("\t\tPerforming gridsearch for final classifier...")
             if os.path.exists(f"{self.output_final_model}/classifier_gs_top{self.current_k}_feats.joblib"):
                 gs = joblib.load(f"{self.output_final_model}/classifier_gs_top{self.current_k}_feats.joblib")
-                print("\tGridsearch results loaded from file.")
+                print("\t\tGridsearch looks like it was already done, so results loaded from pre-existing file!")
             else:
-                print("\tPerforming gridsearch for final classifier...")
                 cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=self.seed)
-                estimator = RandomForestClassifier()
-                params = {
-                    'n_estimators': [25, 50, 75, 100, 200],
-                    'criterion': ['gini', 'entropy', 'log_loss'],
-                    'max_depth': [None, 10, 20],
-                    'min_samples_split': [2, 4, 6],
-                    'max_features': ['sqrt', 'log2', None],
-                    'bootstrap': [True],
-                    'class_weight': ['balanced', 'balanced_subsample']
-                }
+                estimator = self.final_clf_model.model()
+                params = self.final_clf_model.params_small
 
                 gs = GridSearchCV(
                     estimator=estimator,
@@ -600,34 +597,52 @@ class Experiment:
                 gs.fit(X_train_k, y_train)
 
                 if self.save: 
+                    print("\t\tGridsearch done! Saving results to file...")
                     joblib.dump(gs, f"{self.output_final_model}/final_clf_top{self.current_k}_feats_gs.joblib")
-                    gs_summary_line = pd.DataFrame({'GS_name': [f'final_clf_gs'], 'Num_feats': [self.current_k], 'Top_f1_macro': [gs.best_score_], 'Best_params': [str(gs.best_params_)]})
+                    gs_summary_line = pd.DataFrame({'GS_name': ['final_clf_gs'], 'Model_name': [f"FeatureSelection-{self.feat_select_model.name}_FinalModel-{self.final_clf_model.name}"], 'Num_feats': [self.current_k], 'Top_f1_macro': [gs.best_score_], 'Best_params': [str(gs.best_params_)]})
                     if os.path.exists(self.gs_summary_file): 
                         gs_summary_line.to_csv(self.gs_summary_file, mode='a', header=False, index=False)
                     else:
                         gs_summary_line.to_csv(self.gs_summary_file, mode='w', index=False)
 
-                print("\tBest validation score from gridsearch: ", gs.best_score_)
-                print("\tBest parameters from gridsearch: ", gs.best_params_)
+            # Print best results from gridsearch
+            print("\t\tBest validation score from gridsearch: ", gs.best_score_)
+            print("\t\tBest parameters from gridsearch: ", gs.best_params_)
 
-                # Get train set results
-                self.mode = 'train'
-                train_set_probs, train_set_roc_auc_score = self._test_model(gs.best_estimator_, X_train_k, y_train)
+            # Get train set results
+            self.mode = 'train'
+            train_set_probs, train_set_roc_auc_score = self._test_model(gs.best_estimator_, X_train_k, y_train)
 
-                # Get test set results
-                self.mode = 'test'
-                test_set_probs, test_set_roc_auc_score = self._test_model(gs.best_estimator_, X_test_k, y_test)
+            # Get test set results
+            self.mode = 'test'
+            test_set_probs, test_set_roc_auc_score = self._test_model(gs.best_estimator_, X_test_k, y_test)
 
-                # Save the results TODO: make the names better for the dict and save. also pick a consistent score to report / gridsearch with...
-                train_probs_dict[self.current_k] = train_set_probs
-                test_probs_dict[self.current_k] = test_set_probs
-                overall_experiment_results.loc[i] = [self.current_k, train_set_roc_auc_score, gs.best_score_, test_set_roc_auc_score, str(gs.best_params_)]
+            # Save the results 
+            # TODO: pick a consistent score to report / gridsearch with...
+            train_probs_dict[f"{self.current_k}_feats"] = train_set_probs
+            test_probs_dict[f"{self.current_k}_feats"] = test_set_probs
+            overall_experiment_results_line = pd.DataFrame({'Final_model': [self.final_clf_model.name], 'FeatSelect_model': [self.feat_select_model.name], 'Num_feats': [self.current_k], 'Train_score': [train_set_roc_auc_score], 'Val_score': [gs.best_score_], 'Test_score': [test_set_roc_auc_score], 'Best_final_params': [str(gs.best_params_)]})
+            if self.save:
+                print("\t\tSaving further results to file...")
+                if os.file.exists(self.results_summary_file):
+                    overall_experiment_results_line.to_csv(self.results_summary_file, mode='a', header=False, index=False)
+                else:
+                    overall_experiment_results_line.to_csv(self.results_summary_file, mode='w', index=False)
+                
+                joblib.dump({'train': train_probs_dict, 'test': test_probs_dict}, f"{self.output_final_model}/train_test_probs_dict.joblib")
+        
+        overall_experiment_results_df = pd.read_csv(self.results_summary_file)
+
+        return overall_experiment_results_df, {'train': train_probs_dict, 'test': test_probs_dict}
 
     def run(self):
         """Runs radiomics experiment with the provided settings in the constructor."""
 
-        # Step 0: Preparing the data for the experiment
-        print("Step 0: Loading in data for the experiment...")
+        print("\nRunning radiomics experiment...\n")
+        print(f"Settings: {self.__dict__}")
+
+        # Step 0/3: Preparing the data for the experiment
+        print("Step 0/3: Loading in data for the experiment...")
         X_train_df, y_train, X_test_df, y_test = get_data(
             features_file=self.feat_file, 
             outcome=self.prediction_task, 
@@ -639,35 +654,34 @@ class Experiment:
         )
         self.train_subjects_df = pd.DataFrame({'subject_num': list(X_train_df.index), 'true_label': y_train})
         self.test_subjects_df = pd.DataFrame({'subject_num': list(X_test_df.index), 'true_label': y_test})
-        print("\tData loaded successfully!")
+        self.train_subjects_df.to_csv(f"{self.output_dir}/train_subjects.csv", index=False)
+        self.test_subjects_df.to_csv(f"{self.output_dir}/test_subjects.csv", index=False)
+        print("Data loaded successfully!")
 
         # Step 1: Univariate Feature Selection
-        print("Step 1: Univariate Feature Selection...")
+        print("Step 1/3: Univariate Feature Selection...")
         self.uni_overall_df, self.uni_all_feats, self.uni_robust_feats = self._univariate_step(X_train_df, y_train)
-        print("\tUnivariate Feature Selection done!")
+        print("Univariate Feature Selection done!")
 
         # Step 2: Recursive Feature Elimination
-        print("Step 2: Recursive Feature Elimination...")
+        print("Step 2/3: Recursive Feature Elimination...")
         X_reduced = X_train_df[self.uni_all_feats]
         self.rfe_feat_ranking = self._rfe_step(X_reduced, y_train)
-        print("\tRecursive Feature Elimination done!")
+        print("Recursive Feature Elimination done!")
 
         # Step 3: Fit final model using top k features from self.rfe_feat_ranking, varying k
-        # for k in e.g. [32, 64, 128, 256, 512, 1024]
-        # grid search for hyperparameters
-        # save the model
-        # get results on test set
-        print("Step 3: Fitting final model for varying numbers of features...")
+        print("Step 3/3: Fitting final model for varying numbers of features...")
         self._final_fit(X_train=X_train_df[self.rfe_feat_ranking], y_train=y_train, X_test=X_test_df[self.rfe_feat_ranking], y_test=y_test)
-        print("\tFinal model fitting done!")
-        
-        # then allow for arbitrary feature selection model + param space, final model + param space to be passed in
+        print("Final model fitting done!")
+        print("Completed radiomics experiment! Exiting run method.")
 
         # then it is simply about defining the model and param space, and running the experiment for each one
         # look thru results of each pairing for model with highest validation accuracy (pretend u dont have test set results)
         
-        # then ensemble the different kinds of models together, examine test set score of the ensemble
-        # also try active learning at this point
-        # still need to incorporate collage features
+        # then ensemble the different kinds of models together, examine train and test set score of the ensemble
+
         # still need to do nested approach instead of current approach..!
 
+        # still need to incorporate collage features
+
+        # also try active learning at this point
