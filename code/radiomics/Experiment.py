@@ -43,6 +43,7 @@ class Experiment:
         # Settings we don't typically need to change
         self.exp_name = f"Scaler-{scaler}_SMOTE-{use_smote}_EvenTestSplit-{even_test_split}"
         self.feat_file = f"data/radiomics/features6/features_wide.csv"
+        self.gs_params_size = 'small' # 'big' or 'small' depending on the size of the gridsearch
         
         # Setting up the output directories
         self.output_dir = f"{output_dir}/{prediction_task}_TestSize-{test_size}/Seed-{seed}/{self.exp_name}"
@@ -199,6 +200,9 @@ class Experiment:
             overall_uni_df = pd.read_csv(f"{self.output_univariate_fs}/overall_feats.csv")
         else:
             uni_df = None
+            
+            # Remove constant features
+            X = X.loc[:, X.unique() > 1]
 
             # We will start with mutual information, which needs multiple runs to combat its sensitivity to random seed
             # We will run MI 20 times and take the mean of the scores.
@@ -275,18 +279,25 @@ class Experiment:
 
     def _rfe_step(self, X, y):
         """
-        Performs recursive feature elimination using a RF classifier and saves the results.
+        Performs recursive feature elimination using a classifier and saves the results.
         """
-        # Gridsearch for a RF classifier to use during recursive feature elimination in next step
-        print("\tSubstep 1/2: Performing gridsearch for RF classifier to use during RFE step...")
+        # Gridsearch for a classifier to use during recursive feature elimination in next step
+        print("\tSubstep 1/2: Performing gridsearch for classifier to use during RFE step...")
         if os.path.exists(f"{self.output_rfe_fs}/pre_rfe_clf_gs.joblib"):
             gs = joblib.load(f"{self.output_rfe_fs}/pre_rfe_clf_gs.joblib")
             print("\tGridsearch looks like it was already done, so results were loaded from the pre-existing file!")
         else:
             cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=self.seed)
             estimator = self.feat_select_model.model()
-            params = self.feat_select_model.params_big
+            if self.gs_params_size == 'small':
+                params = self.feat_select_model.params_small
+            else:
+                params = self.feat_select_model.params_big
 
+            # make sure if the feature selection model is SVM, we only use linear kernel, since that is the only one that provides feature importances
+            if self.feat_select_model.name == 'SVM':
+                params['kernel'] = ['linear']
+            
             gs = GridSearchCV(
                 estimator=estimator,
                 param_grid=params,
@@ -393,29 +404,36 @@ class Experiment:
     
     def _plot_binary_results(self, probs, y_true):
         """Plot ROC curve, confusion matrix, and metrics table for binary classification tasks. Returns the ROC AUC score."""
-        # Plot 1/3: ROC curve:
+
         fpr, tpr, _ = roc_curve(y_true, probs[:, 1])
         roc_auc = auc(fpr, tpr)
 
-        plt.plot(fpr, tpr, color='tab:orange', lw=2, label=f'AUC = {roc_auc:.2f}')
-        plt.plot([0, 1], [0, 1], color='tab:blue', lw=2, linestyle='--')
-        plt.xlim([0.0, 1.0])
-        plt.ylim([0.0, 1.05])
-        plt.xlabel('False Positive Rate')
-        plt.ylabel('True Positive Rate')
-        plt.title(f'ROC Curve on {self.mode} set (Train/test split: {self.train_subjects_df.shape[0]}/{self.test_size})')
-        plt.legend(loc="lower right")
-        
-        plt.tight_layout()
-        if self.save:
-            plt.savefig(f'{self.output_final_model}/{self.current_k}feats_{self.mode}_roc_curve.png')
-        else:
-            plt.show()
-        plt.close()
+        if self.mode == 'test':
+            # Plot 1/3: ROC curve:
+            plt.plot(fpr, tpr, color='tab:orange', lw=2, label=f'AUC = {roc_auc:.2f}')
+            plt.plot([0, 1], [0, 1], color='tab:blue', lw=2, linestyle='--')
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
+            plt.xlabel('False Positive Rate')
+            plt.ylabel('True Positive Rate')
+            plt.title(f'ROC Curve on {self.mode} set (Train/test split: {self.train_subjects_df.shape[0]}/{self.test_size})')
+            plt.legend(loc="lower right")
+            
+            plt.tight_layout()
+            if self.save:
+                plt.savefig(f'{self.output_final_model}/{self.current_k}feats_{self.mode}_roc_curve.png')
+            else:
+                plt.show()
+            plt.close()
 
         # Plot 2/3: Confusion matrix
         y_pred = np.argmax(probs, axis=1)
-        conf_matrix, accuracy = self._plot_confusion_matrix(y_true, y_pred)
+        if self.mode == 'test':
+            conf_matrix, accuracy = self._plot_confusion_matrix(y_true, y_pred)
+        else:
+            conf_matrix = confusion_matrix(y_true, y_pred)
+            accuracy = accuracy_score(y_true, y_pred)
+        
         tn, fp, fn, tp = conf_matrix.ravel()
 
         # Plot 3/3: Metrics table
@@ -437,7 +455,7 @@ class Experiment:
 
         self._plot_metrics_table(metrics)
 
-        return roc_auc
+        return metrics['Binary F1']
 
     def _plot_multiclass_results(self, probs, y_true):
         """Plot ROC curve, confusion matrix, and metrics table for multiclass classification tasks. Expects y_true to be one-hot encoded."""
@@ -467,55 +485,57 @@ class Experiment:
         tpr["macro"] = mean_tpr
         roc_auc["macro"] = auc(fpr["macro"], tpr["macro"])
 
-        # Plot 1/3: ROC curve
-        _, ax = plt.subplots(figsize=(9, 9))
+        if self.mode == 'test':
+            # Plot 1/3: ROC curve
+            _, ax = plt.subplots(figsize=(9, 9))
 
-        plt.plot(
-            fpr["micro"],
-            tpr["micro"],
-            label=f"micro-average ROC curve (AUC = {roc_auc['micro']:.2f})",
-            color="deeppink",
-            linestyle=":",
-            linewidth=4,
-        )
-
-        plt.plot(
-            fpr["macro"],
-            tpr["macro"],
-            label=f"macro-average ROC curve (AUC = {roc_auc['macro']:.2f})",
-            color="navy",
-            linestyle=":",
-            linewidth=4,
-        )
-
-        colors = cycle(sns.color_palette())
-        for i, color, class_id in zip(range(self.n_classes), colors, self.class_ids):
-            RocCurveDisplay.from_predictions(
-                y_true[:, i],
-                probs[:, i],
-                name=f"ROC curve for {class_id}",
-                color=color,
-                ax=ax,
-                plot_chance_level=(i == self.n_classes - 1),
+            plt.plot(
+                fpr["micro"],
+                tpr["micro"],
+                label=f"micro-average ROC curve (AUC = {roc_auc['micro']:.2f})",
+                color="deeppink",
+                linestyle=":",
+                linewidth=4,
             )
 
-        _ = ax.set(
-            xlabel="False Positive Rate",
-            ylabel="True Positive Rate",
-            title=f"One-vs-Rest ROC Curves: {self.prediction_task}, {self.mode} set (Train/test split: {self.train_subjects_df.shape[0]}/{self.test_size})",
-        )
+            plt.plot(
+                fpr["macro"],
+                tpr["macro"],
+                label=f"macro-average ROC curve (AUC = {roc_auc['macro']:.2f})",
+                color="navy",
+                linestyle=":",
+                linewidth=4,
+            )
 
-        if self.save: 
-            plt.savefig(f'{self.output_final_model}/{self.current_k}feats_{self.mode}_roc_curve.png')
-        else:
-            plt.show()
+            colors = cycle(sns.color_palette())
+            for i, color, class_id in zip(range(self.n_classes), colors, self.class_ids):
+                RocCurveDisplay.from_predictions(
+                    y_true[:, i],
+                    probs[:, i],
+                    name=f"ROC curve for {class_id}",
+                    color=color,
+                    ax=ax,
+                    plot_chance_level=(i == self.n_classes - 1),
+                )
 
-        plt.close()
+            _ = ax.set(
+                xlabel="False Positive Rate",
+                ylabel="True Positive Rate",
+                title=f"One-vs-Rest ROC Curves: {self.prediction_task}, {self.mode} set (Train/test split: {self.train_subjects_df.shape[0]}/{self.test_size})",
+            )
+
+            if self.save: 
+                plt.savefig(f'{self.output_final_model}/{self.current_k}feats_{self.mode}_roc_curve.png')
+            else:
+                plt.show()
+
+            plt.close()
 
         # Plot 2/3: Confusion matrix
         y_true = np.argmax(y_true, axis=1)
         y_pred = np.argmax(probs, axis=1)
-        _, accuracy = self._plot_confusion_matrix(y_true, y_pred)
+        if self.mode == 'test':
+            self._plot_confusion_matrix(y_true, y_pred)
 
         # Plot 3/3: Metrics table
         metrics = {
@@ -530,7 +550,7 @@ class Experiment:
             'Macro Recall (Sensitivity)': recall_score(y_true, y_pred, average='macro'),
             'Micro Recall (Sensitivity)': recall_score(y_true, y_pred, average='micro'),
             'Weighted Recall (Sensitivity)': recall_score(y_true, y_pred, average='weighted'),
-            'Accuracy': accuracy,
+            'Accuracy': accuracy_score(y_true, y_pred),
             'Balanced Accuracy': balanced_accuracy_score(y_true, y_pred),
             'MCC': matthews_corrcoef(y_true, y_pred),
             'Macro Jaccard': jaccard_score(y_true, y_pred, average='macro'),
@@ -540,17 +560,17 @@ class Experiment:
 
         self._plot_metrics_table(metrics)
 
-        return roc_auc["macro"]
+        return metrics['Macro F1']
 
     def _test_model(self, clf, X, y):
         """Tests a model (clf) on a dataset (X, y) and returns results."""
         probs = clf.predict_proba(X)
         if self.n_classes == 2:
-            roc_auc_score = self._plot_binary_results(probs, y)
+            f1 = self._plot_binary_results(probs, y)
         else:
-            roc_auc_score = self._plot_multiclass_results(probs, label_binarize(y, classes=np.arange(self.n_classes)))
+            f1 = self._plot_multiclass_results(probs, label_binarize(y, classes=np.arange(self.n_classes)))
         
-        return probs, roc_auc_score
+        return probs, f1
 
     def _final_fit(self, X_train, y_train, X_test, y_test):
         """Fits the final model using the top k features from self.rfe_feat_ranking, varying k for k in e.g. [32, 64, 128, 256, 512, 1024]."""
@@ -564,14 +584,15 @@ class Experiment:
             self.current_k = k
             feat_set = self.rfe_feat_ranking[:self.current_k]
             X_train_k = X_train[feat_set]
+            y_train_k = y_train
             X_test_k = X_test[feat_set]
             print(f"\tFitting final model number {i + 1}/{len(feat_set_sizes)} using {self.current_k} features...")
 
             # Smote
             if self.use_smote:
-                print(f"\t\tUsing SMOTE! Before SMOTE, X_train_k: {X_train_k.shape}, y_train: {y_train.shape}")
-                X_train_k, y_train = SMOTE(random_state=self.seed).fit_resample(X_train_k, y_train)
-                print(f"\t\tAfter SMOTE, X_train_k: {X_train_k.shape}, y_train: {y_train.shape}")
+                print(f"\t\tUsing SMOTE! Before SMOTE, X_train_k: {X_train_k.shape}, y_train_k: {y_train_k.shape}")
+                X_train_k, y_train_k = SMOTE(random_state=self.seed).fit_resample(X_train_k, y_train_k)
+                print(f"\t\tAfter SMOTE, X_train_k: {X_train_k.shape}, y_train_k: {y_train_k.shape}")
             
             # Gridsearch thru classifier
             print("\t\tPerforming gridsearch for final classifier...")
@@ -581,7 +602,10 @@ class Experiment:
             else:
                 cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=self.seed)
                 estimator = self.final_clf_model.model()
-                params = self.final_clf_model.params_big
+                if self.gs_params_size == 'small':
+                    params = self.final_clf_model.params_small
+                else:
+                    params = self.final_clf_model.params_big
 
                 gs = GridSearchCV(
                     estimator=estimator,
@@ -594,7 +618,7 @@ class Experiment:
                     verbose=1
                 )
 
-                gs.fit(X_train_k, y_train)
+                gs.fit(X_train_k, y_train_k)
 
                 if self.save: 
                     print("\t\tGridsearch done! Saving results to file...")
@@ -609,19 +633,19 @@ class Experiment:
             print("\t\tBest validation score from gridsearch: ", gs.best_score_)
             print("\t\tBest parameters from gridsearch: ", gs.best_params_)
 
-            # Get train set results
-            self.mode = 'train'
-            train_set_probs, train_set_roc_auc_score = self._test_model(gs.best_estimator_, X_train_k, y_train)
-
             # Get test set results
             self.mode = 'test'
-            test_set_probs, test_set_roc_auc_score = self._test_model(gs.best_estimator_, X_test_k, y_test)
+            test_set_probs, test_set_f1_score = self._test_model(gs.best_estimator_, X_test_k, y_test)
+
+            # Get train set results
+            self.mode = 'train'
+            train_set_probs, train_set_f1_score = self._test_model(gs.best_estimator_, X_train_k, y_train_k)
 
             # Save the results 
             # TODO: pick a consistent score to report / gridsearch with...
             train_probs_dict[f"{self.current_k}_feats"] = train_set_probs
             test_probs_dict[f"{self.current_k}_feats"] = test_set_probs
-            overall_experiment_results_line = pd.DataFrame({'Final_model': [self.final_clf_model.name], 'FeatSelect_model': [self.feat_select_model.name], 'Num_feats': [self.current_k], 'Train_score': [train_set_roc_auc_score], 'Val_score': [gs.best_score_], 'Test_score': [test_set_roc_auc_score], 'Best_final_params': [str(gs.best_params_)]})
+            overall_experiment_results_line = pd.DataFrame({'Final_model': [self.final_clf_model.name], 'FeatSelect_model': [self.feat_select_model.name], 'Num_feats': [self.current_k], 'Train_score': [train_set_f1_score], 'Val_score': [gs.best_score_], 'Test_score': [test_set_f1_score], 'Best_final_params': [str(gs.best_params_)]})
             if self.save:
                 print("\t\tSaving further results to file...")
                 if os.path.exists(self.results_summary_file):
@@ -639,7 +663,7 @@ class Experiment:
         """Runs radiomics experiment with the provided settings in the constructor."""
 
         print("\nRunning radiomics experiment...\n")
-        print(f"Settings: {self.__dict__}")
+        # print(f"Settings: {self.__dict__}")
 
         # Step 0/3: Preparing the data for the experiment
         print("Step 0/3: Loading in data for the experiment...")
