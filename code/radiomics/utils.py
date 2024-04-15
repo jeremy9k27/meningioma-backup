@@ -101,10 +101,18 @@ def get_data(features_file='data/radiomics/features4/features_wide.csv', labels_
     
     Returns
     -------
-    train_df : pd.DataFrame
-        The training data.
-    test_df : pd.DataFrame
-        The testing data.
+    X_train_df : pandas DataFrame
+        The training features matrix.
+    y_train : numpy array
+        The training labels.
+    train_subject_nums : pandas Series
+        The training subject numbers.
+    X_test_df : pandas DataFrame
+        The testing features matrix.
+    y_test : numpy array
+        The testing labels.
+    test_subject_nums : pandas Series
+        The testing subject numbers.
     """
     # read in features and labels, merge
     features = pd.read_csv(features_file)
@@ -156,6 +164,8 @@ def get_data(features_file='data/radiomics/features4/features_wide.csv', labels_
     test_df = test_df.fillna(0)
 
     # separate features and labels
+    train_subject_nums = train_df['Subject Number']
+    test_subject_nums = test_df['Subject Number']
     X_train_df = train_df.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
     y_train = train_df[outcome].values.astype(int)
     X_test_df = test_df.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
@@ -175,7 +185,7 @@ def get_data(features_file='data/radiomics/features4/features_wide.csv', labels_
     print(f"Training features matrix shape (n_samples x n_features): {X_train_df.shape}")
     print(f"Testing features matrix shape (n_samples x n_features): {X_test_df.shape}")
 
-    return X_train_df, y_train, X_test_df, y_test
+    return X_train_df, y_train, train_subject_nums, X_test_df, y_test, test_subject_nums
 
 def plot_corr_matrix(X, outcome='?', test_size='?', output_dir=None):
     """Plots the correlation matrix of the radiomics training features."""

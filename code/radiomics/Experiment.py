@@ -667,7 +667,7 @@ class Experiment:
 
         # Step 0/3: Preparing the data for the experiment
         print("Step 0/3: Loading in data for the experiment...")
-        X_train_df, y_train, X_test_df, y_test = get_data(
+        X_train_df, y_train, train_subject_nums, X_test_df, y_test, test_subject_nums = get_data(
             features_file=self.feat_file, 
             outcome=self.prediction_task, 
             test_size=self.test_size, 
@@ -676,9 +676,9 @@ class Experiment:
             scaler_obj=self.scaler_obj, 
             output_dir=self.output_dir
         )
-        # TODO: fix data indexing problems!!
-        self.train_subjects_df = pd.DataFrame({'subject_num': list(X_train_df.index), 'true_label': y_train})
-        self.test_subjects_df = pd.DataFrame({'subject_num': list(X_test_df.index), 'true_label': y_test})
+
+        self.train_subjects_df = pd.DataFrame({'subject_num': list(train_subject_nums), 'true_label': y_train})
+        self.test_subjects_df = pd.DataFrame({'subject_num': list(test_subject_nums), 'true_label': y_test})
         self.train_subjects_df.to_csv(f"{self.output_dir}/train_subjects.csv", index=False)
         self.test_subjects_df.to_csv(f"{self.output_dir}/test_subjects.csv", index=False)
         print("Data loaded successfully!")
@@ -712,3 +712,19 @@ class Experiment:
         # still need to incorporate collage features
 
         # also try active learning at this point
+    
+    def debug(self):
+        X_train_df, y_train, train_subject_nums, X_test_df, y_test, test_subject_nums = get_data(
+            features_file=self.feat_file, 
+            outcome=self.prediction_task, 
+            test_size=self.test_size, 
+            seed=self.seed, 
+            even_test_split=self.even_test_split, 
+            scaler_obj=self.scaler_obj, 
+            output_dir=self.output_dir
+        )
+
+        self.train_subjects_df = pd.DataFrame({'subject_num': list(train_subject_nums), 'true_label': y_train})
+        self.test_subjects_df = pd.DataFrame({'subject_num': list(test_subject_nums), 'true_label': y_test})
+
+        return train_subject_nums, test_subject_nums
