@@ -12,10 +12,12 @@ from preprocessing.utils import setup
 
 setup()
 
-tasks = ['MethylationSubgroup', 'Chr22q']
-test_sizes = [22, 17]
-rfe_models = ['LinearSVM', 'LogisticRegression', 'LDA', 'GradientBoosting', 'RandomForest', 'XGBoost']
-final_models = ['SVM', 'LogisticRegression', 'LDA', 'GradientBoosting', 'GaussianProcess', 'XGBoost']
+tasks = ['Chr22q']
+test_sizes = [17]
+# rfe_models = ['LinearSVM', 'LogisticRegression', 'LDA', 'GradientBoosting', 'RandomForest', 'XGBoost']
+# final_models = ['SVM', 'LogisticRegression', 'LDA', 'GradientBoosting', 'GaussianProcess', 'XGBoost']
+rfe_models = ['LinearSVM']
+final_models = ['SVM']
 
 overall_begin_time = time.time()
 overall_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -23,18 +25,18 @@ overall_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 for task, test_size in zip(tasks, test_sizes):
     print("Task:", task)
     for fs_m, clf_m in zip(rfe_models, final_models):
-        print(f"\t\tModel combo: {fs_m} + {clf_m}")
-        try:
+        print(f"Model combo: {fs_m} + {clf_m}")
+        try: 
             exp = Experiment(
                 prediction_task=task, 
                 test_size=test_size, 
-                seed=1, 
+                seed=2, 
                 feature_selection_model=fs_m, 
                 final_classifier_model=clf_m, 
                 use_smote=True,
                 scaler='Standard',
                 even_test_split=True,
-                output_dir=f'data/radiomics/evaluations/debug_all_models_small'
+                output_dir=f'data/radiomics/evaluations/debug_one_by_one'
             )
             exp.run()
         except Exception as e:

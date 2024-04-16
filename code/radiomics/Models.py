@@ -59,14 +59,16 @@ class TextureAnalysisModel:
                 'loss': ['squared_hinge'],
                 'dual': ['auto'],
                 'C': [0.1, 0.5, 1, 5, 10],
-                'class_weight': ['balanced']
+                'class_weight': ['balanced'],
+                'max_iter': [1000, 5000]
             }
             self.params_small = {
                 'penalty': ['l1', 'l2'],
                 'loss': ['squared_hinge'],
                 'dual': ['auto'],
                 'C': [1],
-                'class_weight': ['balanced']
+                'class_weight': ['balanced'],
+                'max_iter': [5000]
             }
 
         # XGBoost - for feature selection (gblinear) and for final classification
@@ -126,11 +128,11 @@ class TextureAnalysisModel:
         elif self.name == 'LDA':
             self.model = LDA
             self.params_big = {
-                'solver': ['svd', 'lsqr', 'eigen'],
+                'solver': ['svd', 'lsqr'],
                 'shrinkage': [None, 'auto'],
             }
             self.params_small = {
-                'solver': ['svd', 'eigen'],
+                'solver': ['svd', 'lsqr'],
                 'shrinkage': [None],
             }
         

@@ -42,9 +42,11 @@ class Experiment:
 
         # Settings we don't typically need to change
         self.exp_name = f"Scaler-{scaler}_SMOTE-{use_smote}_EvenTestSplit-{even_test_split}"
-        self.feat_file = f"data/radiomics/features6/features_wide.csv"
+        self.feat_file = f"data/radiomics/features6/features_wide.csv" # File location with the radiomics features in wide format
         self.gs_params_size = 'small' # 'big' or 'small' depending on the size of the gridsearch
-        
+        self.num_MI_runs = 5 # 20 # Number of runs to perform for mutual information feature selection
+        self.final_feat_set_size = [32, 64] # [2**x for x in range(5, 11)] # Number of features to use in the final classification model. One of: 32, 64, 128, 256, 512, 1024
+
         # Setting up the output directories
         self.output_dir = f"{output_dir}/{prediction_task}_TestSize-{test_size}/Seed-{seed}/{self.exp_name}"
         if not os.path.exists(self.output_dir) and save: os.makedirs(self.output_dir)
@@ -206,10 +208,9 @@ class Experiment:
             X = X.drop(columns=constant_feats)
 
             # We will start with mutual information, which needs multiple runs to combat its sensitivity to random seed
-            # We will run MI 20 times and take the mean of the scores.
-            num_MI_runs = 20
-            print(f"\tSubstep 1/3: Running MI {num_MI_runs} times to get a more robust estimate of feature importance...")
-            for i in tqdm(range(num_MI_runs)):
+            # We will run MI self.num_MI_runs-many times and take the mean of the scores.
+            print(f"\tSubstep 1/3: Running MI {self.num_MI_runs} times to get a more robust estimate of feature importance...")
+            for i in tqdm(range(self.num_MI_runs)):
                 df = self._uni_fs(X, y, method=lambda X, y: mutual_info_classif(X=X, y=y, random_state=i), method_name=f'MI{i}')
                 if uni_df is None:
                     uni_df = df
@@ -217,9 +218,9 @@ class Experiment:
                     uni_df = uni_df.merge(df, on='feat', how='outer')
             # Now we have the MI score for each feature across all runs, we can take the mean & std dev and rank them
             # We will rank them based on the mean score alone. The std dev is for visualizing the spread of the scores.
-            uni_df['MImean'] = uni_df[[f'MI{i}' for i in range(num_MI_runs)]].mean(axis=1)
+            uni_df['MImean'] = uni_df[[f'MI{i}' for i in range(self.num_MI_runs)]].mean(axis=1)
             uni_df['MImean_rank'] = uni_df['MImean'].rank(ascending=False)
-            uni_df['MIstd'] = uni_df[[f'MI{i}_rank' for i in range(num_MI_runs)]].std(axis=1)
+            uni_df['MIstd'] = uni_df[[f'MI{i}_rank' for i in range(self.num_MI_runs)]].std(axis=1)
             print("\tSubstep 2/3: MI done! Now plotting results and moving on to Chi2 and ANOVA...")
             # Let's plot the top 512 features by mean MI score
             self._plot_feat_ranks_scatter(uni_df, filename=f'{self.output_univariate_fs}/MI_scatter.png', top_k=512)
@@ -335,9 +336,16 @@ class Experiment:
         if os.path.exists(f"{self.output_rfe_fs}/rfecv.joblib"):
             rfecv = joblib.load(f"{self.output_rfe_fs}/rfecv.joblib")
             print("\tRFECV looks like it was already done, therefore results loaded from the pre-existing file!")
+            print("\tOptimal number of features: ", rfecv.n_features_)
+            print("\tOptimal score: ", max(rfecv.cv_results_['mean_test_score']))
+            self._plot_rfecv_results(rfecv)
+            sorted_feats = pd.read_csv(f"{self.output_rfe_fs}/rfe_feat_ranking.csv")['RFE_feat_ranking'].to_list()
         else:
             kf = RepeatedStratifiedKFold(n_splits=5, n_repeats=5, random_state=self.seed)
-            clf = self.feat_select_model.model(**gs.best_params_, random_state=self.seed)
+            if self.feat_select_model.name == 'LDA':
+                clf = self.feat_select_model.model(**gs.best_params_)
+            else:
+                clf = self.feat_select_model.model(**gs.best_params_, random_state=self.seed)
             rfecv = RFECV(estimator=clf, min_features_to_select=1, step=X.shape[1]//self.rfe_step_size, cv=kf, scoring='f1_macro', verbose=0, n_jobs=4)
             rfecv.fit(X, y)
             print("\tRFECV done!")
@@ -352,13 +360,13 @@ class Experiment:
                 else:
                     gs_summary_line.to_csv(self.gs_summary_file, mode='w', index=False)
         
-        print("\tNow plotting RFECV results...")
-        self._plot_rfecv_results(rfecv)
-        sorted_feat_indices = np.argsort(rfecv.ranking_)
-        sorted_feats = X.columns[sorted_feat_indices]
-        if self.save: 
-            print("\tSaving sorted feature rankings to file...")
-            pd.DataFrame({'RFE_feat_ranking': sorted_feats}).to_csv(f"{self.output_rfe_fs}/rfe_feat_ranking.csv", index=False)
+            print("\tNow plotting RFECV results...")
+            self._plot_rfecv_results(rfecv)
+            sorted_feat_indices = np.argsort(rfecv.ranking_)
+            sorted_feats = X.columns[sorted_feat_indices]
+            if self.save: 
+                print("\tSaving sorted feature rankings to file...")
+                pd.DataFrame({'RFE_feat_ranking': sorted_feats}).to_csv(f"{self.output_rfe_fs}/rfe_feat_ranking.csv", index=False)
         return sorted_feats
 
     def _plot_confusion_matrix(self, y_true, y_pred):
@@ -581,19 +589,18 @@ class Experiment:
 
     def _final_fit(self, X_train, y_train, X_test, y_test):
         """Fits the final model using the top k features from self.rfe_feat_ranking, varying k for k in e.g. [32, 64, 128, 256, 512, 1024]."""
-        feat_set_sizes = [2**x for x in range(5, 11)] # 32 to 1024 by powers of 2
         train_probs_dict = {}
         test_probs_dict = {}
 
         # Loop thru the different feature set sizes
-        for i, k in enumerate(feat_set_sizes):
+        for i, k in enumerate(self.final_feat_set_size):
             # Select top k features
             self.current_k = k
             feat_set = self.rfe_feat_ranking[:self.current_k]
             X_train_k = X_train[feat_set]
             y_train_k = y_train
             X_test_k = X_test[feat_set]
-            print(f"\tFitting final model number {i + 1}/{len(feat_set_sizes)} using {self.current_k} features...")
+            print(f"\tFitting final model number {i + 1}/{len(self.final_feat_set_size)} using {self.current_k} features...")
 
             # Smote
             if self.use_smote:
@@ -603,8 +610,8 @@ class Experiment:
             
             # Gridsearch thru classifier
             print("\t\tPerforming gridsearch for final classifier...")
-            if os.path.exists(f"{self.output_final_model}/classifier_gs_top{self.current_k}_feats.joblib"):
-                gs = joblib.load(f"{self.output_final_model}/classifier_gs_top{self.current_k}_feats.joblib")
+            if os.path.exists(f"{self.output_final_model}/final_clf_top{self.current_k}_feats_gs.joblib"):
+                gs = joblib.load(f"{self.output_final_model}/final_clf_top{self.current_k}_feats_gs.joblib")
                 print("\t\tGridsearch looks like it was already done, so results loaded from pre-existing file!")
             else:
                 cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=self.seed)
