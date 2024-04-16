@@ -297,6 +297,12 @@ class Experiment:
             # make sure if the feature selection model is SVM, we only use linear kernel, since that is the only one that provides feature importances
             if self.feat_select_model.name == 'SVM':
                 params['kernel'] = ['linear']
+            elif self.feat_select_model.name == 'XGBoost':
+                params['scale_pos_weight'] = [sum(y == 0) / sum(y == 1), 1]
+                if self.n_classes == 2:
+                    params['objective'] = ['binary:logistic']
+                else:
+                    params['objective'] = ['multi:softmax']
             
             gs = GridSearchCV(
                 estimator=estimator,
@@ -607,6 +613,13 @@ class Experiment:
                 else:
                     params = self.final_clf_model.params_big
 
+                if self.feat_select_model.name == 'XGBoost':
+                    params['scale_pos_weight'] = [sum(y_train_k == 0) / sum(y_train_k == 1), 1]
+                    if self.n_classes == 2:
+                        params['objective'] = ['binary:logistic']
+                    else:
+                        params['objective'] = ['multi:softmax']
+
                 gs = GridSearchCV(
                     estimator=estimator,
                     param_grid=params,
@@ -642,7 +655,6 @@ class Experiment:
             train_set_probs, train_set_f1_score = self._test_model(gs.best_estimator_, X_train_k, y_train_k)
 
             # Save the results 
-            # TODO: pick a consistent score to report / gridsearch with...
             train_probs_dict[f"{self.current_k}_feats"] = train_set_probs
             test_probs_dict[f"{self.current_k}_feats"] = test_set_probs
             overall_experiment_results_line = pd.DataFrame({'Final_model': [self.final_clf_model.name], 'FeatSelect_model': [self.feat_select_model.name], 'Num_feats': [self.current_k], 'Train_score': [train_set_f1_score], 'Val_score': [gs.best_score_], 'Test_score': [test_set_f1_score], 'Best_final_params': [str(gs.best_params_)]})
