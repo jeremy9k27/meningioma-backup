@@ -202,7 +202,8 @@ class Experiment:
             uni_df = None
             
             # Remove constant features
-            X = X.loc[:, X.unique() > 1]
+            constant_feats = [col for col in X.columns if X[col].nunique() == 1]
+            X = X.drop(columns=constant_feats)
 
             # We will start with mutual information, which needs multiple runs to combat its sensitivity to random seed
             # We will run MI 20 times and take the mean of the scores.
