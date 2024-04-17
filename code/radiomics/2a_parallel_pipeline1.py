@@ -17,11 +17,11 @@ setup()
 USE_SMOTE = True
 SCALER = 'Standard'
 EVEN_TEST_SPLIT = True
-OUTPUT_DIR = 'data/radiomics/evaluations/debug_one_by_one_256rfestepsize'
+OUTPUT_DIR = 'data/radiomics/debugging/logging'
 
 # Define feature selection and final classification models to use
-rfe_models = ['LDA', 'LinearSVM', 'LogisticRegression', 'RandomForest', 'GradientBoosting', 'XGBoost']
-final_models = ['LDA', 'GaussianProcess', 'SVM', 'LogisticRegression', 'RandomForest', 'GradientBoosting', 'XGBoost']
+rfe_models = ['LDA', 'LinearSVM'] # ['LDA', 'LinearSVM', 'LogisticRegression', 'RandomForest', 'GradientBoosting', 'XGBoost']
+final_models = ['LDA', 'GaussianProcess'] # ['LDA', 'GaussianProcess', 'SVM', 'LogisticRegression', 'RandomForest', 'GradientBoosting', 'XGBoost']
 
 # Cross product
 feature_selectors = rfe_models * len(final_models)
@@ -30,9 +30,9 @@ classifiers = [x for x in final_models for _ in range(len(rfe_models))]
 N = len(feature_selectors)
 
 # Define tasks, test set sizes, and seeds to loop thru
-tasks = ['Chr22q', 'MethylationSubgroup', 'Chr1p'] 
-test_sizes = [17, 22, 16]
-seeds = [22, 23, 24, 25, 26]
+tasks = ['Chr22q', 'MethylationSubgroup'] # ['Chr22q', 'MethylationSubgroup', 'Chr1p'] 
+test_sizes = [16, 18] # [16, 18, 16]
+seeds = [22] # [22, 23, 24, 25, 26]
 
 overall_begin_time = time.time()
 overall_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

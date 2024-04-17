@@ -27,7 +27,7 @@ from datetime import datetime
 import logging
 
 class Experiment:
-    def __init__(self, prediction_task, test_size, seed, feature_selection_model='RandomForest', final_classifier_model='RandomForest', use_smote=False, scaler=None, even_test_split=False, rfe_step_size=64, output_dir='data/radiomics/evaluations/debugging', parallel_process_id='0', save=True):
+    def __init__(self, prediction_task, test_size, seed, feature_selection_model='RandomForest', final_classifier_model='RandomForest', use_smote=False, scaler=None, even_test_split=False, n_jobs=4, rfe_step_size=64, output_dir='data/radiomics/evaluations/debugging', parallel_process_id='0', save=True):
         """
         Initialize the experiment with the provided settings. 
         
@@ -54,7 +54,7 @@ class Experiment:
         self.gs_params_size = 'small' # 'big' or 'small' depending on the size of the gridsearch
         self.num_MI_runs = 5 # 20 # Number of runs to perform for mutual information feature selection
         self.final_feat_set_size = [32, 64] # [2**x for x in range(5, 11)] # Number of features to use in the final classification model. One of: 32, 64, 128, 256, 512, 1024
-        self.n_jobs = 4 # 4 # Number of jobs to run in parallel for gridsearches
+        self.n_jobs = n_jobs # 4 # Number of jobs to run in parallel for gridsearches
 
         # Setting up the output directories
         self.output_dir = f"{output_dir}/{prediction_task}_TestSize-{test_size}/Seed-{seed}/{self.exp_name}"
@@ -75,14 +75,14 @@ class Experiment:
         # Setting up the logger
         self.log_dir = f"{self.output_dir}/logs"
         if not os.path.exists(self.log_dir) and save: os.makedirs(self.log_dir)
-        self.logger = logging.getLogger(f'Exp_PPID-{parallel_process_id}')
+        self.logger = logging.getLogger(f'{self.output_dir}/Exp_PPID-{parallel_process_id}')
         self.logger.setLevel(logging.INFO)
         if not self.logger.handlers:
             if save:
                 fh = logging.FileHandler(f"{self.log_dir}/Exp_PPID-{parallel_process_id}.log")
             else:
                 fh = logging.StreamHandler(sys.stdout)
-            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+            formatter = logging.Formatter('%(asctime)s (%(levelname)s): %(message)s', datefmt='%m/%d %H:%M')
             fh.setFormatter(formatter)
             self.logger.addHandler(fh)
 
@@ -162,8 +162,8 @@ class Experiment:
                 ax.scatter([x_pos] * len(feat_df), feat_df['rank_value'], color=sm.to_rgba(feat_df[sort_val].iloc[0]), edgecolor='k')
         
         # Customizing the plot
-        ax.xaxis.set_ticks(np.arange(1, top_k + 1))
-        ax.set_xlabel('Feature Number (Ranked)')
+        ax.xaxis.set_ticks([])
+        ax.set_xlabel('Features (Ranked)')
         ax.set_ylabel('Rank Value')
         ax.set_title('Scatter Plot of Ranks by Feature')
 
@@ -189,13 +189,13 @@ class Experiment:
         """
         df_sorted = df.sort_values(by=sort_val_key, ascending=True).head(top_k)
         plt.figure(figsize=(10, 6))  # Set the figure size as desired
-        plt.plot(np.arange(1, top_k + 1), df_sorted[sort_val_key], label='Mean Rank')  # Line graph of means
+        plt.plot(df_sorted['feat'], df_sorted[sort_val_key], label='Mean Rank')  # Line graph of means
 
         # Confidence intervals (mean ± std)
         plt.fill_between(df_sorted['feat'], df_sorted[sort_val_key] - df_sorted[std_key], df_sorted[sort_val_key] + df_sorted[std_key], color='gray', alpha=0.2, label='Confidence Interval')
 
-        # plt.gca().set_xticks([])
-        plt.xlabel('Feature Number (Ranked)')
+        plt.gca().set_xticks([])
+        plt.xlabel('Features (Ranked)')
         plt.ylabel('Mean Rank')
         plt.title('Line Graph of Features by Mean with Confidence Intervals')
         plt.legend()
@@ -354,16 +354,11 @@ class Experiment:
                 else:
                     gs_summary_line.to_csv(self.gs_summary_file, mode='w', index=False)
 
-        self.logger.info("_rfe_step(): Best parameters from pre RFE gridsearch: ", gs.best_params_)
-        self.logger.info("_rfe_step(): Best score from pre RFE gridsearch: ", gs.best_score_)
-
         # Cross-validation and recursive feature elimination
         self.logger.info("_rfe_step(): phase 2/2: Performing cross-validated recursive feature elimination...")
         if os.path.exists(f"{self.output_rfe_fs}/rfecv.joblib"):
             rfecv = joblib.load(f"{self.output_rfe_fs}/rfecv.joblib")
             self.logger.info("_rfe_step(): RFECV looks like it was already done, therefore results loaded from the pre-existing file!")
-            self.logger.info("_rfe_step(): Optimal number of features: ", rfecv.n_features_)
-            self.logger.info("_rfe_step(): Optimal score: ", max(rfecv.cv_results_['mean_test_score']))
             sorted_feats = pd.read_csv(f"{self.output_rfe_fs}/rfe_feat_ranking.csv")['RFE_feat_ranking'].to_list()
         else:
             kf = RepeatedStratifiedKFold(n_splits=5, n_repeats=5, random_state=self.seed)
@@ -373,8 +368,7 @@ class Experiment:
                 clf = self.feat_select_model.model(**gs.best_params_, random_state=self.seed)
             rfecv = RFECV(estimator=clf, min_features_to_select=1, step=X.shape[1]//self.rfe_step_size, cv=kf, scoring='f1_macro', verbose=0, n_jobs=self.n_jobs)
             rfecv.fit(X, y)
-            self.logger.info("_rfe_step(): RFECV done! Optimal number of features: ", rfecv.n_features_)
-            self.logger.info("_rfe_step(): Optimal score: ", max(rfecv.cv_results_['mean_test_score']))
+            self.logger.info("_rfe_step(): RFECV done!")
             if self.save: 
                 self.logger.info("_rfe_step(): Saving results to file...")
                 joblib.dump(rfecv, f"{self.output_rfe_fs}/rfecv.joblib")
@@ -675,10 +669,6 @@ class Experiment:
                     else:
                         gs_summary_line.to_csv(self.gs_summary_file, mode='w', index=False)
 
-            # Print best results from gridsearch
-            self.logger.info("_final_fit(): phase 1/2: Best validation score from gridsearch: ", gs.best_score_)
-            self.logger.info("_final_fit(): phase 1/2: Best parameters from gridsearch: ", gs.best_params_)
-
             # Test the final model on the train/test set
             self.logger.info("_final_fit(): phase 2/2: Inference with the final model on the train/test set...")
             self.mode = 'test'
@@ -722,17 +712,18 @@ class Experiment:
             output_dir=self.output_dir
         )
 
+        self.train_subjects_df = pd.DataFrame({'subject_num': list(train_subject_nums), 'true_label': y_train})
+        self.test_subjects_df = pd.DataFrame({'subject_num': list(test_subject_nums), 'true_label': y_test})
+
         if self.save:
             if not os.path.exists(f"{self.output_dir}/train_subjects.csv"):
-                self.train_subjects_df = pd.DataFrame({'subject_num': list(train_subject_nums), 'true_label': y_train})
                 self.train_subjects_df.to_csv(f"{self.output_dir}/train_subjects.csv", index=False)
             if not os.path.exists(f"{self.output_dir}/test_subjects.csv"):
-                self.test_subjects_df = pd.DataFrame({'subject_num': list(test_subject_nums), 'true_label': y_test})
                 self.test_subjects_df.to_csv(f"{self.output_dir}/test_subjects.csv", index=False)
             if not os.path.exists(f"{self.output_dir}/train_test_split.png"):
                 plot_train_test_split(y_train, y_test, output_file=f"{self.output_dir}/train_test_split.png", class_ids=self.class_ids)
 
-        self.logger.info(f"run_univariate() substep 1/2, test_subject_nums: {test_subject_nums}")
+        self.logger.info(f"run_univariate() substep 1/2, test_subject_nums: {list(test_subject_nums)}")
         self.logger.info(f"run_univariate() substep 1/2, train feat matrix shape (n_samples x n_features): {X_train_df.shape}")
         self.logger.info(f"run_univariate() substep 1/2, test feat matrix shape (n_samples x n_features): {X_test_df.shape}")
 
@@ -773,17 +764,18 @@ class Experiment:
             output_dir=self.output_dir
         )
 
+        self.train_subjects_df = pd.DataFrame({'subject_num': list(train_subject_nums), 'true_label': y_train})
+        self.test_subjects_df = pd.DataFrame({'subject_num': list(test_subject_nums), 'true_label': y_test})
+
         if self.save:
             if not os.path.exists(f"{self.output_dir}/train_subjects.csv"):
-                self.train_subjects_df = pd.DataFrame({'subject_num': list(train_subject_nums), 'true_label': y_train})
                 self.train_subjects_df.to_csv(f"{self.output_dir}/train_subjects.csv", index=False)
             if not os.path.exists(f"{self.output_dir}/test_subjects.csv"):
-                self.test_subjects_df = pd.DataFrame({'subject_num': list(test_subject_nums), 'true_label': y_test})
                 self.test_subjects_df.to_csv(f"{self.output_dir}/test_subjects.csv", index=False)
             if not os.path.exists(f"{self.output_dir}/train_test_split.png"):
                 plot_train_test_split(y_train, y_test, output_file=f"{self.output_dir}/train_test_split.png", class_ids=self.class_ids)
 
-        self.logger.info(f"run_rfe() substep 1/3, test_subject_nums: {test_subject_nums}")
+        self.logger.info(f"run_rfe() substep 1/3, test_subject_nums: {list(test_subject_nums)}")
         self.logger.info(f"run_rfe() substep 1/3, train feat matrix shape (n_samples x n_features): {X_train_df.shape}")
         self.logger.info(f"run_rfe() substep 1/3, test feat matrix shape (n_samples x n_features): {X_test_df.shape}")
 
@@ -833,17 +825,18 @@ class Experiment:
             output_dir=self.output_dir
         )
 
+        self.train_subjects_df = pd.DataFrame({'subject_num': list(train_subject_nums), 'true_label': y_train})
+        self.test_subjects_df = pd.DataFrame({'subject_num': list(test_subject_nums), 'true_label': y_test})
+
         if self.save:
             if not os.path.exists(f"{self.output_dir}/train_subjects.csv"):
-                self.train_subjects_df = pd.DataFrame({'subject_num': list(train_subject_nums), 'true_label': y_train})
                 self.train_subjects_df.to_csv(f"{self.output_dir}/train_subjects.csv", index=False)
             if not os.path.exists(f"{self.output_dir}/test_subjects.csv"):
-                self.test_subjects_df = pd.DataFrame({'subject_num': list(test_subject_nums), 'true_label': y_test})
                 self.test_subjects_df.to_csv(f"{self.output_dir}/test_subjects.csv", index=False)
             if not os.path.exists(f"{self.output_dir}/train_test_split.png"):
                 plot_train_test_split(y_train, y_test, output_file=f"{self.output_dir}/train_test_split.png", class_ids=self.class_ids)
 
-        self.logger.info(f"run_all() substep 1/4, test_subject_nums: {test_subject_nums}")
+        self.logger.info(f"run_all() substep 1/4, test_subject_nums: {list(test_subject_nums)}")
         self.logger.info(f"run_all() substep 1/4, train feat matrix shape (n_samples x n_features): {X_train_df.shape}")
         self.logger.info(f"run_all() substep 1/4, test feat matrix shape (n_samples x n_features): {X_test_df.shape}")
 
