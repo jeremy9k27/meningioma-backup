@@ -128,13 +128,10 @@ class TextureAnalysisModel:
         elif self.name == 'LDA':
             self.model = LDA
             self.params_big = {
-                'solver': ['svd', 'lsqr'],
+                'solver': ['svd'],
                 'shrinkage': [None, 'auto'],
             }
-            self.params_small = {
-                'solver': ['svd', 'lsqr'],
-                'shrinkage': [None],
-            }
+            self.params_small = self.params_big
         
         # Gradient Boosting - for feature selection and for final classification (648 models in grid search)
         elif self.name == 'GradientBoosting':

@@ -18,6 +18,7 @@ USE_SMOTE = True
 SCALER = 'Standard'
 EVEN_TEST_SPLIT = True
 OUTPUT_DIR = 'data/radiomics/debugging/logging'
+N_JOBS = 2
 
 # Define feature selection and final classification models to use
 rfe_models = ['LDA', 'LinearSVM'] # ['LDA', 'LinearSVM', 'LogisticRegression', 'RandomForest', 'GradientBoosting', 'XGBoost']
@@ -69,7 +70,8 @@ for task, test_size in zip(tasks, test_sizes):
                     scaler=SCALER,
                     even_test_split=EVEN_TEST_SPLIT,
                     output_dir=OUTPUT_DIR,
-                    parallel_process_id=i + 1
+                    parallel_process_id=i + 1,
+                    n_jobs=N_JOBS
                 )
                 exp.run_rfe()
             except Exception as e:
@@ -89,7 +91,8 @@ for task, test_size in zip(tasks, test_sizes):
                     scaler=SCALER,
                     even_test_split=EVEN_TEST_SPLIT,
                     output_dir=OUTPUT_DIR,
-                    parallel_process_id=j + 101
+                    parallel_process_id=j + 101,
+                    n_jobs=N_JOBS
                 )
                 exp.run_all()
             except Exception as e:
