@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import MinMaxScaler
 
-def plot_train_test_split(y_train, y_test, output_dir=None, class_ids=None):
+def plot_train_test_split(y_train, y_test, output_file=None, class_ids=None):
     """
     Bar graph showing the number of samples per class in the training and testing sets. Called at the end of get_data() below.
     """
@@ -51,8 +51,8 @@ def plot_train_test_split(y_train, y_test, output_dir=None, class_ids=None):
     plt.tight_layout()
 
     # Save figure or show it
-    if output_dir is not None:
-        plt.savefig(f'{output_dir}/train_test_split.png')
+    if output_file is not None:
+        plt.savefig(output_file)
     else:
         plt.show()
     plt.close()
@@ -175,15 +175,6 @@ def get_data(features_file='data/radiomics/features4/features_wide.csv', labels_
     if scaler_obj is not None:
         X_train_df = pd.DataFrame(scaler_obj.fit_transform(X_train_df), columns=X_train_df.columns)
         X_test_df = pd.DataFrame(scaler_obj.transform(X_test_df), columns=X_test_df.columns)
-
-    # plot the split of the data
-    class_ids = ['Intact', 'Loss']
-    if outcome == 'MethylationSubgroup': class_ids = ['Merlin Intact', 'Immune Enriched', 'Hypermetabolic']
-    plot_train_test_split(y_train, y_test, output_dir=output_dir, class_ids=class_ids)
-
-    # print the shape of the training features
-    print(f"Training features matrix shape (n_samples x n_features): {X_train_df.shape}")
-    print(f"Testing features matrix shape (n_samples x n_features): {X_test_df.shape}")
 
     return X_train_df, y_train, train_subject_nums, X_test_df, y_test, test_subject_nums
 
