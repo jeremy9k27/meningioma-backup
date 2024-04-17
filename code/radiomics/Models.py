@@ -11,17 +11,17 @@ class TextureAnalysisModel:
     def __init__(self, name='RandomForest'):
         self.name = name
 
-        # Random Forest - for feature selection and for final classification
+        # Random Forest - for feature selection and for final classification (243 models in grid search)
         if self.name == 'RandomForest':
             self.model = RandomForestClassifier
             self.params_big = {
-                'n_estimators': [25, 50, 75, 100, 200],
+                'n_estimators': [25, 50, 75],
                 'criterion': ['gini', 'entropy', 'log_loss'],
                 'max_depth': [None, 10, 20],
                 'min_samples_split': [2, 4, 6],
                 'max_features': ['sqrt', 'log2', None],
                 'bootstrap': [True],
-                'class_weight': ['balanced', 'balanced_subsample']
+                'class_weight': ['balanced_subsample']
             }
             self.params_small = {
                 'n_estimators': [100],
@@ -33,7 +33,7 @@ class TextureAnalysisModel:
                 'class_weight': ['balanced']
             }
         
-        # Support Vector Machine - for final classification only
+        # Support Vector Machine - for final classification only (24 models in grid search)
         elif self.name == 'SVM':
             self.model = SVC
             self.params_big = {
@@ -51,7 +51,7 @@ class TextureAnalysisModel:
                 'probability': [True]
             }
         
-        # Linear SVM - for feature selection only
+        # Linear SVM - for feature selection only (20 models in grid search)
         elif self.name == 'LinearSVM':
             self.model = LinearSVC
             self.params_big = {
@@ -71,7 +71,7 @@ class TextureAnalysisModel:
                 'max_iter': [5000]
             }
 
-        # XGBoost - for feature selection (gblinear) and for final classification
+        # XGBoost - for feature selection (gblinear) and for final classification (756000 models in grid search)
         # https://xgboost.readthedocs.io/en/stable/python/python_api.html#xgboost.XGBClassifier
         # https://xgboost.readthedocs.io/en/stable/parameter.html
         # https://xgboost.readthedocs.io/en/stable/tutorials/param_tuning.html
@@ -102,7 +102,7 @@ class TextureAnalysisModel:
                 'objective': ['binary:logistic'],
             }
         
-        # Logistic Regression - for feature selection and for final classification
+        # Logistic Regression - for feature selection and for final classification (100 models in grid search)
         elif self.name == 'LogisticRegression':
             self.model = LogisticRegression
             self.params_big = {
@@ -110,7 +110,7 @@ class TextureAnalysisModel:
                 'C': [0.1, 0.5, 1, 5, 10],
                 'class_weight': ['balanced'],
                 'solver': ['saga'],
-                'max_iter': [100, 200, 300, 400, 500],
+                'max_iter': [1000],
                 'multi_class': ['ovr', 'multinomial'],
                 'l1_ratio': [0, 0.25, 0.5, 0.75, 1]
             }
@@ -119,12 +119,12 @@ class TextureAnalysisModel:
                 'C': [1],
                 'class_weight': ['balanced'],
                 'solver': ['saga'],
-                'max_iter': [100],
+                'max_iter': [1000],
                 'multi_class': ['ovr'],
                 'l1_ratio': [0, 1]
             }
         
-        # Linear Discriminant Analysis - for feature selection and for final classification
+        # Linear Discriminant Analysis - for feature selection and for final classification (4 models in grid search)
         elif self.name == 'LDA':
             self.model = LDA
             self.params_big = {
@@ -136,13 +136,13 @@ class TextureAnalysisModel:
                 'shrinkage': [None],
             }
         
-        # Gradient Boosting - for feature selection and for final classification
+        # Gradient Boosting - for feature selection and for final classification (648 models in grid search)
         elif self.name == 'GradientBoosting':
             self.model = GradientBoostingClassifier
             self.params_big = {
-                'loss': ['log_loss', 'exponential'],
-                'learning_rate': [0.01, 0.1, 0.3, 0.5],
-                'n_estimators': [50, 100, 200, 400],
+                'loss': ['log_loss'],
+                'learning_rate': [0.05, 0.1, 0.3],
+                'n_estimators': [100, 200, 400],
                 'subsample': [0.8, 1.0],
                 'criterion': ['friedman_mse'],
                 'min_samples_split': [2, 4, 6],
@@ -160,13 +160,13 @@ class TextureAnalysisModel:
                 'max_features': ['sqrt'],                
             }
         
-        # Gaussian Process - for final classification only
+        # Gaussian Process - for final classification only (6 models in grid search)
         elif self.name == 'GaussianProcess':
             self.model = GaussianProcessClassifier
             self.params_big = {
                 'kernel': [1.0 * RBF(1.0), 1.0 * Matern(nu=0.5), 1.0 * Matern(nu=1.5), 1.0 * Matern(nu=2.5), 1.0 * RationalQuadratic(), 1.0 * DotProduct()],
-                'n_restarts_optimizer': [5, 10],
-                'max_iter_predict': [100, 300, 500]
+                'n_restarts_optimizer': [10],
+                'max_iter_predict': [500]
             }
             self.params_small = {
                 'kernel': [1.0 * RBF(1.0), 1.0 * Matern(nu=1.5)],

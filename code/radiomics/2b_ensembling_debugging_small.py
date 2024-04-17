@@ -12,12 +12,12 @@ from preprocessing.utils import setup
 
 setup()
 
-tasks = ['Chr22q']
+tasks = ['Chr22q'] 
 test_sizes = [17]
-# rfe_models = ['LinearSVM', 'LogisticRegression', 'LDA', 'GradientBoosting', 'RandomForest', 'XGBoost']
-# final_models = ['SVM', 'LogisticRegression', 'LDA', 'GradientBoosting', 'GaussianProcess', 'XGBoost']
-rfe_models = ['LinearSVM']
-final_models = ['SVM']
+rfe_models = ['LinearSVM', 'LogisticRegression', 'LDA', 'GradientBoosting', 'RandomForest', 'XGBoost']
+final_models = ['SVM', 'LogisticRegression', 'LDA', 'GradientBoosting', 'GaussianProcess', 'XGBoost']
+# rfe_models = ['GradientBoosting'] 
+# final_models = ['GradientBoosting']
 
 overall_begin_time = time.time()
 overall_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -36,7 +36,7 @@ for task, test_size in zip(tasks, test_sizes):
                 use_smote=True,
                 scaler='Standard',
                 even_test_split=True,
-                output_dir=f'data/radiomics/evaluations/debug_one_by_one'
+                output_dir=f'data/radiomics/evaluations/debug_one_by_one_256rfestepsize'
             )
             exp.run()
         except Exception as e:

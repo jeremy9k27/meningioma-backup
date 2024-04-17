@@ -19,7 +19,7 @@ import os
 from Models import TextureAnalysisModel
 
 class Experiment:
-    def __init__(self, prediction_task, test_size, seed, feature_selection_model='RandomForest', final_classifier_model='RandomForest', use_smote=False, scaler=None, even_test_split=False, rfe_step_size=32, output_dir='data/radiomics/evaluations/debugging', save=True):
+    def __init__(self, prediction_task, test_size, seed, feature_selection_model='RandomForest', final_classifier_model='RandomForest', use_smote=False, scaler=None, even_test_split=False, rfe_step_size=64, output_dir='data/radiomics/evaluations/debugging', save=True):
         """
         Initialize the experiment with the provided settings. 
         
@@ -46,6 +46,7 @@ class Experiment:
         self.gs_params_size = 'small' # 'big' or 'small' depending on the size of the gridsearch
         self.num_MI_runs = 5 # 20 # Number of runs to perform for mutual information feature selection
         self.final_feat_set_size = [32, 64] # [2**x for x in range(5, 11)] # Number of features to use in the final classification model. One of: 32, 64, 128, 256, 512, 1024
+        self.n_jobs = 4 # 4 # Number of jobs to run in parallel for gridsearches
 
         # Setting up the output directories
         self.output_dir = f"{output_dir}/{prediction_task}_TestSize-{test_size}/Seed-{seed}/{self.exp_name}"
@@ -311,7 +312,7 @@ class Experiment:
                 param_grid=params,
                 scoring='f1_macro',
                 refit=False,
-                n_jobs=4,
+                n_jobs=self.n_jobs,
                 cv=cv,
                 return_train_score=True,
                 verbose=1
@@ -346,7 +347,7 @@ class Experiment:
                 clf = self.feat_select_model.model(**gs.best_params_)
             else:
                 clf = self.feat_select_model.model(**gs.best_params_, random_state=self.seed)
-            rfecv = RFECV(estimator=clf, min_features_to_select=1, step=X.shape[1]//self.rfe_step_size, cv=kf, scoring='f1_macro', verbose=0, n_jobs=4)
+            rfecv = RFECV(estimator=clf, min_features_to_select=1, step=X.shape[1]//self.rfe_step_size, cv=kf, scoring='f1_macro', verbose=0, n_jobs=self.n_jobs)
             rfecv.fit(X, y)
             print("\tRFECV done!")
             print("\tOptimal number of features: ", rfecv.n_features_)
@@ -633,7 +634,7 @@ class Experiment:
                     param_grid=params,
                     scoring='f1_macro',
                     refit=True,
-                    n_jobs=4,
+                    n_jobs=self.n_jobs,
                     cv=cv,
                     return_train_score=True,
                     verbose=1
