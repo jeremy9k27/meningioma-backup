@@ -37,7 +37,7 @@ import SimpleITK as sitk
 
 # Set up the directories and paths, define global constants
 setup()
-MRI_DIR = 'data/preprocessing/output/7_COMPLETED_PREPROCESSED'
+MRI_DIR = 'data/preprocessed_mri_scans/7_COMPLETED_PREPROCESSED'
 SEGS_DIR = 'data/segmentations/'
 SEGS_PATHS = [f for f in os.listdir(SEGS_DIR) if f.startswith('Segmentation')]
 OUTPUT_DIR = 'data/radiomics/features6'

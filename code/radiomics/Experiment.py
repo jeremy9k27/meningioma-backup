@@ -51,9 +51,9 @@ class Experiment:
         # Settings we don't typically need to change
         self.exp_name = f"Scaler-{scaler}_SMOTE-{use_smote}_EvenTestSplit-{even_test_split}"
         self.feat_file = f"data/radiomics/features6/features_wide.csv" # File location with the radiomics features in wide format
-        self.gs_params_size = 'small' # 'big' or 'small' depending on the size of the gridsearch
-        self.num_MI_runs = 5 # 20 # Number of runs to perform for mutual information feature selection
-        self.final_feat_set_size = [32, 64] # [2**x for x in range(5, 11)] # Number of features to use in the final classification model. One of: 32, 64, 128, 256, 512, 1024
+        self.gs_params_size = 'big' # 'big' or 'small' depending on the size of the gridsearch
+        self.num_MI_runs = 20 # 20 # Number of runs to perform for mutual information feature selection
+        self.final_feat_set_size = [2**x for x in range(5, 11)] # [32, 64] # [2**x for x in range(5, 11)] # Number of features to use in the final classification model. One of: 32, 64, 128, 256, 512, 1024
         self.n_jobs = n_jobs # 4 # Number of jobs to run in parallel for gridsearches
 
         # Setting up the output directories
@@ -315,7 +315,7 @@ class Experiment:
             gs = joblib.load(f"{self.output_rfe_fs}/pre_rfe_clf_gs.joblib")
             self.logger.info("_rfe_step(): Gridsearch looks like it was already done, so results were loaded from the pre-existing file!")
         else:
-            cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=self.seed)
+            cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=5, random_state=self.seed)
             estimator = self.feat_select_model.model()
             if self.gs_params_size == 'small':
                 params = self.feat_select_model.params_small
@@ -633,7 +633,7 @@ class Experiment:
                 gs = joblib.load(f"{self.output_final_model}/final_clf_top{self.current_k}_feats_gs.joblib")
                 self.logger.info("_final_fit(): phase 1/2: Gridsearch looks like it was already done, so results loaded from pre-existing file!")
             else:
-                cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=self.seed)
+                cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=5, random_state=self.seed)
                 estimator = self.final_clf_model.model()
                 if self.gs_params_size == 'small':
                     params = self.final_clf_model.params_small

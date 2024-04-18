@@ -74,7 +74,7 @@ def clean_feature_names(strings):
         
     return replaced_strings
 
-def get_data(features_file='data/radiomics/features4/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', test_size=9, seed=42, even_test_split=False, scaler_obj=None, output_dir=None):
+def get_data(features_file='data/radiomics/features6/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', test_size=9, seed=42, even_test_split=False, scaler_obj=None, output_dir=None):
     """
     Prepares training and testing data split for the meningioma project. 
     Implements 0 imputation of NaNs and scales data if scaler_obj is specified (no data leakage during scaling step). 
@@ -196,7 +196,7 @@ def plot_corr_matrix(X, outcome='?', test_size='?', output_dir=None):
         plt.show()
     plt.close()
 
-def count_subjects(labels_file='data/labels/MeningiomaBiomarkerData.csv', mri_dir='data/preprocessing/output/7_COMPLETED_PREPROCESSED', segs_dir='data/segmentations', outcome='MethylationSubgroup', verbose=False, drop_by_outcome=True):
+def count_subjects(labels_file='data/labels/MeningiomaBiomarkerData.csv', mri_dir='data/preprocessed_mri_scans/7_COMPLETED_PREPROCESSED', segs_dir='data/segmentations', outcome='MethylationSubgroup', verbose=False, drop_by_outcome=True):
     """
     Given a labels file, MRI directory, segmentations directory, and outcome variable (prediction task), this function returns: 
     * the number of subjects with MRI data & biomarker data;
@@ -241,7 +241,7 @@ def count_subjects(labels_file='data/labels/MeningiomaBiomarkerData.csv', mri_di
 
     return sorted(mris_w_labels), sorted(mris_w_labels_w_segs), have_df
 
-def get_subset_scan_counts(subjects, data_dir='data/preprocessing/output/7_COMPLETED_PREPROCESSED'):
+def get_subset_scan_counts(subjects, data_dir='data/preprocessed_mri_scans/7_COMPLETED_PREPROCESSED'):
     """
     Returns counts of each scan type located within a folder.
 
