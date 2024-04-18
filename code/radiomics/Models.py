@@ -79,17 +79,17 @@ class TextureAnalysisModel:
             self.model = XGBClassifier
             self.params_big = {
                 'n_estimators': [25, 50, 75, 100], # Number of boosting rounds
-                'max_depth': [3, 6, 9, 12], # Maximum tree depth for base learners
-                'grow_policy': [0, 1], # Tree growing policy. 0: favor splitting at nodes closest to the node, i.e. grow depth-wise. 1: favor splitting at nodes with highest loss change
+                # 'max_depth': [3, 6, 9, 12], # Maximum tree depth for base learners
+                # 'grow_policy': [0, 1], # Tree growing policy. 0: favor splitting at nodes closest to the node, i.e. grow depth-wise. 1: favor splitting at nodes with highest loss change
                 'learning_rate': [0.1, 0.3, 0.5, 0.7], # boosting learning rate, eta
                 'objective': ['binary:logistic'], # or 'multi:softmax'; Specify the learning task and the corresponding learning objective or a custom objective function to be used
                 'booster': ['gbtree', 'gblinear', 'dart'], # Specify which booster to use: gbtree, gblinear or dart
-                'tree_method': ['hist'], # The tree construction algorithm used in XGBoost
+                # 'tree_method': ['hist'], # The tree construction algorithm used in XGBoost
                 # 'n_jobs': [1], # Number of parallel threads used to run XGBoost
-                'gamma': [0], # Minimum loss reduction required to make a further partition on a leaf node of the tree
-                'min_child_weight': [1], # worth searching thru ??
-                'subsample': [0.8, 1.0], # worth searching thru?? Subsample ratio of the training instances
-                'colsample_bytree': [0.8, 1.0], # worth searching thru?? Subsample ratio of columns when constructing each tree
+                # 'gamma': [0], # Minimum loss reduction required to make a further partition on a leaf node of the tree
+                # 'min_child_weight': [1], # worth searching thru ??
+                # 'subsample': [0.8, 1.0], # worth searching thru?? Subsample ratio of the training instances
+                # 'colsample_bytree': [0.8, 1.0], # worth searching thru?? Subsample ratio of columns when constructing each tree
                 'scale_pos_weight': [1],
                 'reg_alpha': [0, 1], # L1 regularization term on weights
                 'reg_lambda': [0, 1], # L2 regularization term on weights
