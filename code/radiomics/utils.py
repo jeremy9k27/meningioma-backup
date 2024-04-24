@@ -74,7 +74,7 @@ def clean_feature_names(strings):
         
     return replaced_strings
 
-def get_data(features_file='data/radiomics/features6/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', test_size=9, seed=42, even_test_split=False, scaler_obj=None, output_dir=None):
+def get_data(features_file='data/radiomics/features6/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', test_size=9, seed=42, even_test_split=False, scaler_obj=None):
     """
     Prepares training and testing data split for the meningioma project. 
     Implements 0 imputation of NaNs and scales data if scaler_obj is specified (no data leakage during scaling step). 
@@ -96,8 +96,6 @@ def get_data(features_file='data/radiomics/features6/features_wide.csv', labels_
         Whether the test should should have an even class split. By default, even_test_split=False, in which case the test set has the same class proportionality as the overall dataset.
     scaler_obj : object
         A scaler object to scale the data. By default, scaler_obj=None. E.g., StandardScaler(), MinMaxScaler(), etc.
-    output_dir : str
-        The path to the output directory where the train/test split plot will be saved. By default, output_dir=None, in which case the plot is shown but not saved.
     
     Returns
     -------
@@ -177,6 +175,24 @@ def get_data(features_file='data/radiomics/features6/features_wide.csv', labels_
         X_test_df = pd.DataFrame(scaler_obj.transform(X_test_df), columns=X_test_df.columns)
 
     return X_train_df, y_train, train_subject_nums, X_test_df, y_test, test_subject_nums
+
+def prep_data_for_loocv(features_file='data/radiomics/features6/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', scaler_obj=None):
+    # read in features and labels, merge
+    features = pd.read_csv(features_file)
+    labels = pd.read_csv(labels_file)
+    labels = labels.dropna(subset=[outcome])
+    labels = labels[labels['Subject Number'].isin(features['Subject Number'])]
+    data = features.merge(labels, on='Subject Number')
+    data.columns = clean_feature_names(data.columns)
+    data = data.dropna(axis=1, how='all').fillna(0)
+    X = data.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
+    y = data[outcome].values.astype(int)
+
+    # scale data if specified
+    if scaler_obj is not None:
+        X = pd.DataFrame(scaler_obj.fit_transform(X), columns=X.columns)
+    
+    return X, y
 
 def plot_corr_matrix(X, outcome='?', test_size='?', output_dir=None):
     """Plots the correlation matrix of the radiomics training features."""
