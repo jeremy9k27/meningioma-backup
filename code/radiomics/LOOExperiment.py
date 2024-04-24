@@ -612,6 +612,104 @@ class LOOExperiment:
 
         return train_metrics_by_lambda, test_metrics_by_lambda, self.nonzero_coefs, self.best_lambda
 
+    # Helper function to perform the computation for a single lambda
+    def process_lambda(self, lmda):
+        coefs = []
+        intercepts = []
+        test_probs = []
+        test_preds = []
+        train_metrics = []
+
+        for train_idx, test_idx in tqdm(LeaveOneOut().split(self.X), total=len(self.X), desc=f"Processing lambda={lmda}"):
+
+            X_train = self.X.iloc[train_idx]
+            y_train = self.y[train_idx]
+            X_test = self.X.iloc[test_idx]
+            y_test = self.y[test_idx]
+
+            train_idx_end = len(X_train)
+
+            if self.use_smote:
+                X_train, y_train = SMOTE(random_state=self.seed).fit_resample(X_train, y_train)
+
+            model = LogisticRegression(C=lmda, **self.lr_params)
+
+            model.fit(X_train, y_train)
+
+            coefs.append(model.coef_)
+            intercepts.append(model.intercept_)
+
+            train_probs = model.predict_proba(X_train.iloc[0:train_idx_end])
+            train_preds = model.predict(X_train.iloc[0:train_idx_end])
+
+            if self.n_classes == 2:
+                train_metrics.append(self.get_binary_metrics(train_probs, train_preds, y_train[0:train_idx_end]))
+            else:
+                train_metrics.append(self.get_multiclass_metrics(train_probs, train_preds, label_binarize(y_train[0:train_idx_end], classes=np.arange(self.n_classes))))
+
+            test_probs.append(model.predict_proba(X_test))
+            test_preds.append(model.predict(X_test))
+                
+        return {
+            'lambda': lmda,
+            'coefs': np.stack(coefs).squeeze(),
+            'intercepts': np.stack(intercepts).squeeze(),
+            'test_probs': np.stack(test_probs).squeeze(),
+            'test_preds': np.stack(test_preds).squeeze(),
+            'train_metrics': pd.DataFrame(train_metrics)
+        }
+
+    def par_loo_model(self, pmetric='AUC'):
+        # Preparing storage dictionaries
+        coefs_by_lambda = {}
+        intercepts_by_lambda = {}
+        test_probs_by_lambda = {}
+        train_metrics_by_lambda = {}
+        test_metrics_by_lambda = {}
+        
+        # Use ProcessPoolExecutor to parallelize the loop over lambdas
+        with ProcessPoolExecutor(max_workers=2) as executor:
+            futures = {executor.submit(self.process_lambda, lmda): lmda for lmda in self.lambdas}
+            for future in as_completed(futures):
+                result = future.result()
+                lmda = result['lambda']
+                coefs_by_lambda[lmda] = result['coefs']
+                intercepts_by_lambda[lmda] = result['intercepts']
+                test_probs_by_lambda[lmda] = result['test_probs']
+                test_preds = result['test_preds']
+                train_metrics_by_lambda[lmda] = result['train_metrics']
+                if self.n_classes == 2:
+                    test_metrics = pd.DataFrame(self.get_binary_metrics(result['test_probs'], test_preds, self.y), index=[0])
+                else:
+                    test_metrics = pd.DataFrame(self.get_multiclass_metrics(result['test_probs'], test_preds, label_binarize(self.y, classes=np.arange(self.n_classes))), index=[0])
+
+                test_metrics_by_lambda[lmda] = test_metrics
+        
+        self.perf_metric = pmetric
+        test_perf_met_by_lambda = self.plot_metric_by_lambda(train_metrics_by_lambda, test_metrics_by_lambda, pmetric)
+        for metric in test_metrics_by_lambda[self.lambdas[0]].columns:
+            self.plot_metric_by_lambda(train_metrics_by_lambda, test_metrics_by_lambda, metric)
+
+        max_perf_met_index = test_perf_met_by_lambda[pmetric].idxmax()
+        self.best_lambda = test_perf_met_by_lambda.loc[max_perf_met_index, 'Lambda']
+
+        print(f"Best lambda: {self.best_lambda}")
+
+        self.coef = coefs_by_lambda[self.best_lambda]
+        self.intercept = intercepts_by_lambda[self.best_lambda]
+        self.test_probs = test_probs_by_lambda[self.best_lambda]
+
+        self.nonzero_coefs = self.plot_coefs()
+        if self.n_classes > 2:
+            self._plot_multiclass_results(self.test_probs, label_binarize(self.y, classes=np.arange(self.n_classes)))
+        else:
+            self._plot_binary_results(self.test_probs, self.y)
+
+        self.train_metrics_by_lambda = train_metrics_by_lambda
+        self.test_metrics_by_lambda = test_metrics_by_lambda
+
+        return self.train_metrics_by_lambda, self.test_metrics_by_lambda, self.nonzero_coefs, self.best_lambda
+
     # def inner_loop(X, y, lambda):
     #     """
     #     Dataset (X, y) is assumed to have N many samples, K many features. Lambda is fixed
