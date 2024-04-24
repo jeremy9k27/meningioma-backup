@@ -613,50 +613,57 @@ class LOOExperiment:
         return train_metrics_by_lambda, test_metrics_by_lambda, self.nonzero_coefs, self.best_lambda
 
     # Helper function to perform the computation for a single lambda
+    def model_fit_predict(self, train_idx, test_idx, lmda):
+        X_train = self.X.iloc[train_idx]
+        y_train = self.y[train_idx]
+        X_test = self.X.iloc[test_idx]
+        y_test = self.y[test_idx]
+
+        if self.use_smote:
+            X_train, y_train = SMOTE(random_state=self.seed).fit_resample(X_train, y_train)
+
+        model = LogisticRegression(C=lmda, **self.lr_params)
+        model.fit(X_train, y_train)
+
+        coefs = model.coef_
+        intercepts = model.intercept_
+        train_probs = model.predict_proba(X_train)
+        train_preds = model.predict(X_train)
+
+        test_probs = model.predict_proba(X_test)
+        test_preds = model.predict(X_test)
+
+        if self.n_classes == 2:
+            train_metrics = self.get_binary_metrics(train_probs, train_preds, y_train)
+        else:
+            train_metrics = self.get_multiclass_metrics(train_probs, train_preds, label_binarize(y_train, classes=np.arange(self.n_classes)))
+
+        return (coefs, intercepts, test_probs, test_preds, y_test, train_metrics)
+
     def process_lambda(self, lmda):
-        coefs = []
-        intercepts = []
-        test_probs = []
-        test_preds = []
-        train_metrics = []
+        results = []
 
-        for train_idx, test_idx in tqdm(LeaveOneOut().split(self.X), total=len(self.X), desc=f"Processing lambda={lmda}"):
+        # Create a ProcessPoolExecutor to handle tasks in parallel
+        with ProcessPoolExecutor(max_workers=16) as executor:
+            # Create tasks for each train-test split
+            futures = [executor.submit(self.model_fit_predict, train_idx, test_idx, lmda)
+                       for train_idx, test_idx in LeaveOneOut().split(self.X)]
 
-            X_train = self.X.iloc[train_idx]
-            y_train = self.y[train_idx]
-            X_test = self.X.iloc[test_idx]
-            y_test = self.y[test_idx]
+            # Use tqdm to monitor progress
+            for future in tqdm(as_completed(futures), total=len(futures), desc=f"Processing lambda={lmda}"):
+                results.append(future.result())
 
-            train_idx_end = len(X_train)
+        # Unpack results
+        coefs, intercepts, test_probs, test_preds, y_test, train_metrics = zip(*results)
 
-            if self.use_smote:
-                X_train, y_train = SMOTE(random_state=self.seed).fit_resample(X_train, y_train)
-
-            model = LogisticRegression(C=lmda, **self.lr_params)
-
-            model.fit(X_train, y_train)
-
-            coefs.append(model.coef_)
-            intercepts.append(model.intercept_)
-
-            train_probs = model.predict_proba(X_train.iloc[0:train_idx_end])
-            train_preds = model.predict(X_train.iloc[0:train_idx_end])
-
-            if self.n_classes == 2:
-                train_metrics.append(self.get_binary_metrics(train_probs, train_preds, y_train[0:train_idx_end]))
-            else:
-                train_metrics.append(self.get_multiclass_metrics(train_probs, train_preds, label_binarize(y_train[0:train_idx_end], classes=np.arange(self.n_classes))))
-
-            test_probs.append(model.predict_proba(X_test))
-            test_preds.append(model.predict(X_test))
-                
         return {
             'lambda': lmda,
             'coefs': np.stack(coefs).squeeze(),
             'intercepts': np.stack(intercepts).squeeze(),
             'test_probs': np.stack(test_probs).squeeze(),
             'test_preds': np.stack(test_preds).squeeze(),
-            'train_metrics': pd.DataFrame(train_metrics)
+            'y_test': np.stack(y_test).squeeze(),
+            'train_metrics': pd.DataFrame(list(train_metrics))
         }
 
     def par_loo_model(self, pmetric='AUC'):
@@ -664,6 +671,7 @@ class LOOExperiment:
         coefs_by_lambda = {}
         intercepts_by_lambda = {}
         test_probs_by_lambda = {}
+        y_tests_by_lambda = {}
         train_metrics_by_lambda = {}
         test_metrics_by_lambda = {}
         
@@ -677,11 +685,12 @@ class LOOExperiment:
                 intercepts_by_lambda[lmda] = result['intercepts']
                 test_probs_by_lambda[lmda] = result['test_probs']
                 test_preds = result['test_preds']
+                y_tests_by_lambda[lmda] = result['y_test']
                 train_metrics_by_lambda[lmda] = result['train_metrics']
                 if self.n_classes == 2:
-                    test_metrics = pd.DataFrame(self.get_binary_metrics(result['test_probs'], test_preds, self.y), index=[0])
+                    test_metrics = pd.DataFrame(self.get_binary_metrics(result['test_probs'], test_preds, result['y_test']), index=[0])
                 else:
-                    test_metrics = pd.DataFrame(self.get_multiclass_metrics(result['test_probs'], test_preds, label_binarize(self.y, classes=np.arange(self.n_classes))), index=[0])
+                    test_metrics = pd.DataFrame(self.get_multiclass_metrics(result['test_probs'], test_preds, label_binarize(result['y_test'], classes=np.arange(self.n_classes))), index=[0])
 
                 test_metrics_by_lambda[lmda] = test_metrics
         
@@ -698,12 +707,13 @@ class LOOExperiment:
         self.coef = coefs_by_lambda[self.best_lambda]
         self.intercept = intercepts_by_lambda[self.best_lambda]
         self.test_probs = test_probs_by_lambda[self.best_lambda]
+        self.y_test = y_tests_by_lambda[self.best_lambda]
 
         self.nonzero_coefs = self.plot_coefs()
         if self.n_classes > 2:
-            self._plot_multiclass_results(self.test_probs, label_binarize(self.y, classes=np.arange(self.n_classes)))
+            self._plot_multiclass_results(self.test_probs, label_binarize(self.y_test, classes=np.arange(self.n_classes)))
         else:
-            self._plot_binary_results(self.test_probs, self.y)
+            self._plot_binary_results(self.test_probs, self.y_test)
 
         self.train_metrics_by_lambda = train_metrics_by_lambda
         self.test_metrics_by_lambda = test_metrics_by_lambda
