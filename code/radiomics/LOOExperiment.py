@@ -338,19 +338,6 @@ class LOOExperiment:
         self._plot_metrics_table(metrics)
 
         return metrics['Macro F1']
-
-    def lr(self, coef, intercept, query):
-        def sigmoid(x):
-            return 1 / (1 + np.exp(-x))
-        
-        raw = sigmoid(np.squeeze(np.dot(coef, query.T)) + intercept)
-        if len(raw) == 1:
-            raw = np.array([1 - raw[0], raw[0]])
-
-        probs = raw / np.sum(raw)
-        pred = int(np.argmax(probs))
-
-        return probs, pred
     
     def plot_metric_by_lambda(self, train_metrics_by_lambda, test_metrics_by_lambda, metric):
         # Processing Training Data
@@ -371,6 +358,13 @@ class LOOExperiment:
         test_metrics = {k: df[metric].iloc[0] for k, df in test_metrics_by_lambda.items() if metric in df.columns}
         test_df = pd.DataFrame(list(test_metrics.items()), columns=['Lambda', metric])
 
+        # Pick best lambda and it's value to include in title
+        max_perf_met_index = test_df[metric].idxmax()
+        best_lambda = round(test_df.loc[max_perf_met_index, 'Lambda'], 2)
+        best_value = round(test_df.loc[max_perf_met_index, metric], 3)
+
+        plt.figure(figsize=(12, 8))
+        
         # Plotting Training Data
         plt.errorbar(train_mean_df['Lambda'], train_mean_df['Mean'], yerr=train_std_df['Std Dev'], label=f'Train {metric}', marker='o')
 
@@ -379,7 +373,7 @@ class LOOExperiment:
 
         plt.xlabel('Lambda')
         plt.ylabel(metric)
-        plt.title(f'{self.prediction_task}: Classic LOO CV Evolution Curve')
+        plt.title(f'{self.prediction_task}: Classic LOO CV Evolution Curve\nBest Lambda = {best_lambda} by {metric} = {best_value}')
         plt.legend()
         plt.grid(True)
         if self.save:
@@ -518,16 +512,16 @@ class LOOExperiment:
 
         coefs = model.coef_
         intercepts = model.intercept_
-        train_probs = model.predict_proba(X_train)
-        train_preds = model.predict(X_train)
+        train_probs = model.predict_proba(X_train[:len(self.X)-1])
+        train_preds = model.predict(X_train[:len(self.X)-1])
 
         test_probs = model.predict_proba(X_test)
         test_preds = model.predict(X_test)
 
         if self.n_classes == 2:
-            train_metrics = self.get_binary_metrics(train_probs, train_preds, y_train)
+            train_metrics = self.get_binary_metrics(train_probs, train_preds, y_train[:len(self.X)-1])
         else:
-            train_metrics = self.get_multiclass_metrics(train_probs, train_preds, label_binarize(y_train, classes=np.arange(self.n_classes)))
+            train_metrics = self.get_multiclass_metrics(train_probs, train_preds, label_binarize(y_train[:len(self.X)-1], classes=np.arange(self.n_classes)))
 
         return (coefs, intercepts, test_probs, test_preds, y_test, train_metrics)
 
@@ -610,212 +604,3 @@ class LOOExperiment:
         self.test_metrics_by_lambda = test_metrics_by_lambda
 
         return self.train_metrics_by_lambda, self.test_metrics_by_lambda, self.nonzero_coefs, self.best_lambda
-
-    # def inner_loop(X, y, lambda):
-    #     """
-    #     Dataset (X, y) is assumed to have N many samples, K many features. Lambda is fixed
-    #     cross val returns N many predictions, one for each sample in X, and N many models, one fit on each of the N possible training sets
-    #     """
-    #     N_preds, N_models = cross_val(LogReg(X, y, lambda), splits=LOO(X, y))
-    #     metric = balanced_accuracy_score(y, N_preds)
-    #     return metric, N_models
-    #
-    # N = len(X)
-    # for lambda in [0.1, 1, 10, ...]:
-    #     all_y_hats = []
-    #     val_metrics = []
-    #     for i in range(N):
-    #
-    #         X_train = X.drop(i)
-    #         y_train = y.drop(i)
-    #         X_test = X[i]
-    #         y_test = y[i]
-    #
-    #         val_metric, N_models = inner_loop(X_train, y_train, lambda)
-    #
-    #         val_metrics.append(val_metric)
-    #
-    #         y_hat = predict(N_models, X_test)
-    #         all_y_hats.append(y_hat)
-    #
-    #     test_metric = balanced_accuracy_score(y, all_y_hats)
-    # each lambda is then left with: 1 test_metric, N val_metrics, and N*(N-1) train metrics
-    # can plot a graph where X axis is lambda, Y axis is metric, and three are 3 lines, one for test performance, one for train, one for val.
-    # error bars exist for train and val, which are the std of each metric respectively
-        
-    def debug(self, lambdas=[0.1]):
-        """
-        lambdas : list
-            List of L1 regularization parameters to search over. [0.1, 1, 10, 100, 1000] ?
-        """
-        # Read in data
-        X, y, subject_nums = prep_data_for_loocv(
-            features_file=self.feat_file, 
-            outcome=self.prediction_task, 
-            scaler_obj=self.scaler_obj
-        )
-
-        # Remove constant features
-        constant_feats = [col for col in X.columns if X[col].nunique() == 1]
-        X = X.drop(columns=constant_feats)
-
-        self.train_subjects_df = X.copy()
-        # Plot class split
-        plot_train_test_split(y, y, output_file=None, class_ids=self.class_ids)
-    
-        outer_loo = LeaveOneOut()
-        outer_coefs = []
-        outer_intercepts = []
-        outer_preds = []
-        outer_labels = []
-
-        for lmda in lambdas:
-            for i, (train_val_idx, test_idx) in enumerate(outer_loo.split(X)):
-                print(f"Outer fold {i + 1}/{len(X)}")
-
-                X_train_val = X.iloc[train_val_idx]
-                y_train_val = y[train_val_idx]
-                X_test = X.iloc[test_idx]
-                y_test = y[test_idx]
-
-                if self.use_smote:
-                    X_train_val, y_train_val = SMOTE(random_state=self.seed).fit_resample(X_train_val, y_train_val)
-
-                inner_loo = LeaveOneOut()
-
-                inner_coefs = []
-                inner_intercepts = []
-                inner_preds = []
-                inner_labels = []
-
-                for j, (train_idx, val_idx) in enumerate(inner_loo.split(X_train_val)):
-                    # print(f"Inner fold {j + 1}/{len(X_train_val)}")
-
-                    X_train = X_train_val.iloc[train_idx]
-                    y_train = y_train_val[train_idx]
-                    X_val = X_train_val.iloc[val_idx]
-                    y_val = y_train_val[val_idx]
-
-                    # Define model
-                    model = LogisticRegression(
-                        penalty='l1', 
-                        C=lmda, 
-                        class_weight='balanced', 
-                        random_state=self.seed, 
-                        solver='liblinear', 
-                        max_iter=1000, 
-                        verbose=1
-                    )
-
-                    # Fit model
-                    model.fit(X_train, y_train)
-
-                    # Save coefs and intercepts
-                    inner_coefs.append(model.coef_)
-                    inner_intercepts.append(model.intercept_)
-
-                    # Predict
-                    inner_preds.append(model.predict(X_val))
-                    inner_labels.append(y_val)
-                
-                inner_preds = np.array(inner_preds).squeeze()
-                inner_labels = np.array(inner_labels).squeeze()
-                inner_coefs = np.stack(inner_coefs)
-                inner_intercepts = np.stack(inner_intercepts)
-                # self._plot_confusion_matrix(y_true=inner_labels[:len(X)-1], y_pred=inner_preds[:len(X)-1]) # excluding synthetic features made by SMOTE
-
-                outer_coef = np.mean(inner_coefs, axis=0)
-                outer_intercept = np.mean(inner_intercepts, axis=0)
-                outer_coefs.append(outer_coef)
-                outer_intercepts.append(outer_intercept)
-
-                outer_prob, outer_pred = self.lr(outer_coef, outer_intercept, X_test)
-                outer_preds.append(outer_pred)
-                outer_labels.append(y_test)
-
-            return outer_coefs, outer_intercepts, outer_preds, outer_labels, X.columns
-    
-    def process_fold(self, args):
-        i, (train_val_idx, test_idx), X, y, lmda = args
-        print(f"Processing Outer fold {i + 1}")
-
-        X_train_val = X.iloc[train_val_idx]
-        y_train_val = y[train_val_idx]
-        X_test = X.iloc[test_idx]
-        y_test = y[test_idx]
-
-        if self.use_smote:
-            X_train_val, y_train_val = SMOTE(random_state=self.seed).fit_resample(X_train_val, y_train_val)
-
-        inner_loo = LeaveOneOut()
-        inner_coefs = []
-        inner_intercepts = []
-        inner_preds = []
-        inner_labels = []
-
-        for j, (train_idx, val_idx) in enumerate(inner_loo.split(X_train_val)):
-            X_train = X_train_val.iloc[train_idx]
-            y_train = y_train_val[train_idx]
-            X_val = X_train_val.iloc[val_idx]
-            y_val = y_train_val[val_idx]
-
-            model = LogisticRegression(
-                penalty='l1', 
-                C=lmda, 
-                class_weight='balanced', 
-                random_state=self.seed, 
-                solver='liblinear', 
-                max_iter=1000, 
-                verbose=0  # Reduced verbosity for parallel run
-            )
-            model.fit(X_train, y_train)
-            inner_coefs.append(model.coef_)
-            inner_intercepts.append(model.intercept_)
-            inner_preds.append(model.predict(X_val))
-            inner_labels.append(y_val)
-
-        inner_coefs = np.stack(inner_coefs)
-        inner_intercepts = np.stack(inner_intercepts)
-        
-        outer_coef = np.mean(inner_coefs, axis=0)
-        outer_intercept = np.mean(inner_intercepts, axis=0)
-
-        # Example: Implement prediction based on outer_coef and outer_intercept
-        outer_pred = model.predict(X_test)  # Simple example
-        outer_label = y_test
-        
-        return outer_coef, outer_intercept, outer_pred, outer_label
-
-    def perform_cross_validation(self, lambdas=[0.1]):
-        # Read in data
-        X, y, subject_nums = prep_data_for_loocv(
-            features_file=self.feat_file, 
-            outcome=self.prediction_task, 
-            scaler_obj=self.scaler_obj
-        )
-
-        # Remove constant features
-        constant_feats = [col for col in X.columns if X[col].nunique() == 1]
-        X = X.drop(columns=constant_feats)
-
-        self.train_subjects_df = X.copy()
-
-        # Plot class split
-        plot_train_test_split(y, y, output_file=None, class_ids=self.class_ids)
-
-        outer_loo = LeaveOneOut()
-
-        args = [(i, indices, X, y, lambdas[0]) for i, indices in enumerate(outer_loo.split(X))]
-
-        with ProcessPoolExecutor(max_workers=os.cpu_count() // 2) as executor:
-            # Submit all tasks and store the future instances
-            futures = [executor.submit(self.process_fold, arg) for arg in args]
-
-            results = []
-            # Setup tqdm to monitor progress based on completion of futures
-            for future in tqdm(as_completed(futures), total=len(futures), desc="Outer folds"):
-                result = future.result()
-                results.append(result)
-
-        outer_coefs, outer_intercepts, outer_preds, outer_labels = zip(*results)
-        return outer_coefs, outer_intercepts, outer_preds, outer_labels, X.columns
