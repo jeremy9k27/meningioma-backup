@@ -83,7 +83,7 @@ class LOOExperiment:
         sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='viridis', cbar=False, xticklabels=self.class_ids, yticklabels=self.class_ids)
         plt.xlabel('Predicted labels')
         plt.ylabel('True labels')
-        plt.title(f'Confusion Matrix (lambda = {self.best_lambda})\nBalanced Accuracy = {balanced_accuracy*100:.2f}%')
+        plt.title(f'Confusion Matrix (lambda = {round(self.best_lambda, 2)})\nBalanced Accuracy = {balanced_accuracy*100:.2f}%')
         
         if self.save:
             plt.savefig(f'{self.output_dir}/final_test_confusion_matrix.png')
@@ -201,7 +201,7 @@ class LOOExperiment:
         plt.ylim([0.0, 1.05])
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
-        plt.title(f'ROC Curve (lambda = {self.best_lambda})')
+        plt.title(f'ROC Curve (lambda = {round(self.best_lambda, 2)})')
         plt.legend(loc="lower right")
         
         plt.tight_layout()
@@ -299,7 +299,7 @@ class LOOExperiment:
         _ = ax.set(
             xlabel="False Positive Rate",
             ylabel="True Positive Rate",
-            title=f"{self.prediction_task}: One-vs-Rest ROC Curves (lambda = {self.best_lambda})",
+            title=f"{self.prediction_task}: One-vs-Rest ROC Curves (lambda = {round(self.best_lambda, 2)})",
         )
 
         if self.save: 
@@ -364,7 +364,7 @@ class LOOExperiment:
         best_value = round(test_df.loc[max_perf_met_index, metric], 3)
 
         plt.figure(figsize=(12, 8))
-        
+
         # Plotting Training Data
         plt.errorbar(train_mean_df['Lambda'], train_mean_df['Mean'], yerr=train_std_df['Std Dev'], label=f'Train {metric}', marker='o')
 
@@ -390,7 +390,7 @@ class LOOExperiment:
         plt.xlabel('Fold', fontsize=16)
         plt.ylabel('Feature', fontsize=16)
         plt.yticks(rotation=0, fontsize=12)
-        plt.title(f'{name} Heatmap of L1-regularized coefs across folds\n(lambda = {self.best_lambda})', fontsize=20)
+        plt.title(f'{name} Heatmap of L1-regularized coefs across folds\n(lambda = {round(self.best_lambda, 2)})', fontsize=20)
         plt.tight_layout()
         if self.save:
             plt.savefig(f'{self.output_dir}/{plot_name}_coefs_heatmap.png')
@@ -403,7 +403,7 @@ class LOOExperiment:
         data = data.abs()
         data = data.iloc[::-1]
         data.plot(kind='barh', stacked=True, colormap='viridis', ax=plt.gca(), legend=False)
-        plt.title(f'{name} Sum of Coef Absolute Values \n(lambda = {self.best_lambda})', fontsize=20)
+        plt.title(f'{name} Sum of Coef Absolute Values \n(lambda = {round(self.best_lambda, 2)})', fontsize=20)
         plt.ylabel('Feature', fontsize=16)
         plt.xlabel('Sum of Coef Absolute Values (coloured by fold #)', fontsize=16)
         plt.yticks(rotation=45, fontsize=12)
@@ -587,7 +587,7 @@ class LOOExperiment:
         max_perf_met_index = test_perf_met_by_lambda[pmetric].idxmax()
         self.best_lambda = test_perf_met_by_lambda.loc[max_perf_met_index, 'Lambda']
 
-        print(f"Best lambda: {self.best_lambda}")
+        print(f"Best lambda: {round(self.best_lambda, 2)}")
 
         self.coef = coefs_by_lambda[self.best_lambda]
         self.intercept = intercepts_by_lambda[self.best_lambda]
