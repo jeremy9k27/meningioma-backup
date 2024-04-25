@@ -1,10 +1,3 @@
-# TODO:
-# look thru results of each pairing for model with highest validation accuracy (pretend u dont have test set results)
-# then ensemble the different kinds of models together, examine train and test set score of the ensemble
-
-# still need to do nested approach instead of current approach..!
-# still need to incorporate collage features
-# also try active learning at this point
 import numpy as np
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import LeaveOneOut
@@ -19,14 +12,8 @@ import matplotlib.colors as mcolors
 import seaborn as sns
 from tqdm import tqdm
 import pandas as pd
-import joblib
 import os
-import sys
-import time
-from datetime import datetime
-import logging
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from sklearn.model_selection import cross_val_score
 
 class LOOExperiment:
     def __init__(self, prediction_task, lambdas=[0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15], use_smote=True, scaler='Standard', seed=0, output_dir='data/radiomics_loo', save=True):
@@ -45,10 +32,8 @@ class LOOExperiment:
         self.scaler = scaler
         self.seed = seed
         self.output_dir = f"{output_dir}/{prediction_task}"
-        self.classic_loo_output_dir = f"{self.output_dir}/classic_loo"
-        self.classic_loo_evolution_dir = f"{self.classic_loo_output_dir}/evolution_curves"
-        self.lto_output_dir = f"{self.output_dir}/lto"
-        for d in [self.output_dir, self.classic_loo_output_dir, self.classic_loo_evolution_dir, self.lto_output_dir]:
+        self.classic_loo_evolution_dir = f"{self.output_dir}/evolution_curves"
+        for d in [self.output_dir, self.classic_loo_evolution_dir]:
             if not os.path.exists(d) and save: os.makedirs(d)
         
         self.save = save
@@ -63,19 +48,6 @@ class LOOExperiment:
             'max_iter':100, 
             'verbose':0
         }
-        # Setting up the logger
-        # self.log_dir = f"{self.output_dir}/logs"
-        # if not os.path.exists(self.log_dir) and save: os.makedirs(self.log_dir)
-        # self.logger = logging.getLogger(f'{self.output_dir}/Exp_PPID-{parallel_process_id}')
-        # self.logger.setLevel(logging.INFO)
-        # if not self.logger.handlers:
-        #     if save:
-        #         fh = logging.FileHandler(f"{self.log_dir}/Exp_PPID-{parallel_process_id}.log")
-        #     else:
-        #         fh = logging.StreamHandler(sys.stdout)
-        #     formatter = logging.Formatter('%(asctime)s (%(levelname)s): %(message)s', datefmt='%m/%d %H:%M')
-        #     fh.setFormatter(formatter)
-        #     self.logger.addHandler(fh)
 
         # Automatically generated settings
         if self.prediction_task == 'MethylationSubgroup':
@@ -114,7 +86,7 @@ class LOOExperiment:
         plt.title(f'Confusion Matrix (lambda = {self.best_lambda})\nBalanced Accuracy = {balanced_accuracy*100:.2f}%')
         
         if self.save:
-            plt.savefig(f'{self.classic_loo_output_dir}/final_test_confusion_matrix.png')
+            plt.savefig(f'{self.output_dir}/final_test_confusion_matrix.png')
         else:
             plt.show()
         plt.close()
@@ -135,11 +107,11 @@ class LOOExperiment:
 
         if self.save:
             # Save the metrics table
-            plt.savefig(f'{self.classic_loo_output_dir}/final_test_perf_metrics.png')
+            plt.savefig(f'{self.output_dir}/final_test_perf_metrics.png')
             plt.close()
             
             # Save the metrics to their own csv file
-            metrics_df.to_csv(f'{self.classic_loo_output_dir}/final_test_perf_metrics.csv', index=False)
+            metrics_df.to_csv(f'{self.output_dir}/final_test_perf_metrics.csv', index=False)
         else:
             plt.show()
             plt.close()
@@ -234,7 +206,7 @@ class LOOExperiment:
         
         plt.tight_layout()
         if self.save:
-            plt.savefig(f'{self.classic_loo_output_dir}/final_test_roc_curve.png')
+            plt.savefig(f'{self.output_dir}/final_test_roc_curve.png')
         else:
             plt.show()
         plt.close()
@@ -331,7 +303,7 @@ class LOOExperiment:
         )
 
         if self.save: 
-            plt.savefig(f'{self.classic_loo_output_dir}/final_test_roc_curve.png')
+            plt.savefig(f'{self.output_dir}/final_test_roc_curve.png')
         else:
             plt.show()
 
@@ -427,7 +399,7 @@ class LOOExperiment:
         plt.title(f'{name} Heatmap of L1-regularized coefs across folds\n(lambda = {self.best_lambda})', fontsize=20)
         plt.tight_layout()
         if self.save:
-            plt.savefig(f'{self.classic_loo_output_dir}/{plot_name}_coefs_heatmap.png')
+            plt.savefig(f'{self.output_dir}/{plot_name}_coefs_heatmap.png')
         else:
             plt.show()
         plt.close()
@@ -443,7 +415,7 @@ class LOOExperiment:
         plt.yticks(rotation=45, fontsize=12)
         plt.tight_layout()
         if self.save:
-            plt.savefig(f'{self.classic_loo_output_dir}/{plot_name}_coefs_bargraph.png')
+            plt.savefig(f'{self.output_dir}/{plot_name}_coefs_bargraph.png')
         else:
             plt.show()
         plt.close()
@@ -474,7 +446,7 @@ class LOOExperiment:
 
         # Show the plot
         if self.save:
-            plt.savefig(f'{self.classic_loo_output_dir}/{plot_name}.png')
+            plt.savefig(f'{self.output_dir}/{plot_name}.png')
         else:
             plt.show()
         plt.close()
@@ -503,7 +475,7 @@ class LOOExperiment:
                 self.plot_coef_bargraph(nonzero_coefs_final, f"{biomarker} vs. Rest:", plot_name=biomarker)
                 self.plot_heatmap(nonzero_coefs_final, f"{biomarker} vs. Rest:", plot_name=biomarker)
 
-                if self.save: nonzero_coefs.to_csv(f'{self.classic_loo_output_dir}/{biomarker}_coefs.csv')
+                if self.save: nonzero_coefs.to_csv(f'{self.output_dir}/{biomarker}_coefs.csv')
 
         else:
             coefs = pd.DataFrame(self.coef.squeeze(), columns=self.feat_names)
@@ -527,90 +499,9 @@ class LOOExperiment:
             self.plot_coef_bargraph(nonzero_coefs_final, self.prediction_task, plot_name=self.prediction_task)
             self.plot_heatmap(nonzero_coefs_final, self.prediction_task, plot_name=self.prediction_task)
 
-            if self.save: nonzero_coefs.to_csv(f'{self.classic_loo_output_dir}/{self.prediction_task}_coefs.csv')
+            if self.save: nonzero_coefs.to_csv(f'{self.output_dir}/{self.prediction_task}_coefs.csv')
         
         return nonzero_coefs
-
-    def loo_model(self, pmetric='AUC'):
-        
-        coefs_by_lambda = {}
-        intercepts_by_lambda = {}
-        test_probs_by_lambda = {}
-        train_metrics_by_lambda = {}
-        test_metrics_by_lambda = {}
-
-        for i, lmda in enumerate(self.lambdas):
-            
-            coefs = []
-            intercepts = []
-            test_probs = []
-            test_preds = []
-            train_metrics = []
-
-            for train_idx, test_idx in tqdm(LeaveOneOut().split(self.X), total=len(self.X), desc=f"Processing lambda ({i+1}/{len(self.lambdas)})"):
-
-                X_train = self.X.iloc[train_idx]
-                y_train = self.y[train_idx]
-                X_test = self.X.iloc[test_idx]
-                y_test = self.y[test_idx]
-
-                train_idx_end = len(X_train)
-
-                if self.use_smote:
-                    X_train, y_train = SMOTE(random_state=self.seed).fit_resample(X_train, y_train)
-
-                model = LogisticRegression(C=lmda, **self.lr_params)
-
-                model.fit(X_train, y_train)
-
-                coefs.append(model.coef_)
-                intercepts.append(model.intercept_)
-
-                train_probs = model.predict_proba(X_train.iloc[0:train_idx_end])
-                train_preds = model.predict(X_train.iloc[0:train_idx_end])
-
-                if self.n_classes == 2:
-                    train_metrics.append(self.get_binary_metrics(train_probs, train_preds, y_train[0:train_idx_end]))
-                else:
-                    train_metrics.append(self.get_multiclass_metrics(train_probs, train_preds, label_binarize(y_train[0:train_idx_end], classes=np.arange(self.n_classes))))
-
-                test_probs.append(model.predict_proba(X_test))
-                test_preds.append(model.predict(X_test))
-            
-            # Save results for this lambda here
-            test_preds = np.squeeze(np.stack(test_preds))
-            test_probs = np.squeeze(np.stack(test_probs))
-            test_probs_by_lambda[lmda] = test_probs
-            coefs_by_lambda[lmda] = np.squeeze(np.stack(coefs))
-            intercepts_by_lambda[lmda] = np.squeeze(np.stack(intercepts))
-
-            train_metrics_by_lambda[lmda] = pd.DataFrame(train_metrics)
-            if self.n_classes == 2:
-                test_metrics_by_lambda[lmda] = pd.DataFrame(self.get_binary_metrics(test_probs, test_preds, self.y), index=[0])
-            else:
-                test_metrics_by_lambda[lmda] = pd.DataFrame(self.get_multiclass_metrics(test_probs, test_preds, label_binarize(self.y, classes=np.arange(self.n_classes))), index=[0])
-
-        self.perf_metric = pmetric
-        test_perf_met_by_lambda = self.plot_metric_by_lambda(train_metrics_by_lambda, test_metrics_by_lambda, pmetric)
-        for metric in test_metrics_by_lambda[self.lambdas[0]].columns:
-            self.plot_metric_by_lambda(train_metrics_by_lambda, test_metrics_by_lambda, metric)
-
-        max_perf_met_index = test_perf_met_by_lambda[pmetric].idxmax()
-        self.best_lambda = test_perf_met_by_lambda.loc[max_perf_met_index, 'Lambda']
-
-        print(f"Best lambda: {self.best_lambda}")
-
-        self.coef = coefs_by_lambda[self.best_lambda]
-        self.intercept = intercepts_by_lambda[self.best_lambda]
-        self.test_probs = test_probs_by_lambda[self.best_lambda]
-
-        self.nonzero_coefs = self.plot_coefs()
-        if self.n_classes > 2:
-            self._plot_multiclass_results(self.test_probs, label_binarize(self.y, classes=np.arange(self.n_classes)))
-        else:
-            self._plot_binary_results(self.test_probs, self.y)
-
-        return train_metrics_by_lambda, test_metrics_by_lambda, self.nonzero_coefs, self.best_lambda
 
     # Helper function to perform the computation for a single lambda
     def model_fit_predict(self, train_idx, test_idx, lmda):
@@ -644,7 +535,7 @@ class LOOExperiment:
         results = []
 
         # Create a ProcessPoolExecutor to handle tasks in parallel
-        with ProcessPoolExecutor(max_workers=16) as executor:
+        with ProcessPoolExecutor(max_workers=4) as executor:
             # Create tasks for each train-test split
             futures = [executor.submit(self.model_fit_predict, train_idx, test_idx, lmda)
                        for train_idx, test_idx in LeaveOneOut().split(self.X)]
@@ -676,7 +567,7 @@ class LOOExperiment:
         test_metrics_by_lambda = {}
         
         # Use ProcessPoolExecutor to parallelize the loop over lambdas
-        with ProcessPoolExecutor(max_workers=2) as executor:
+        with ProcessPoolExecutor(max_workers=8) as executor:
             futures = {executor.submit(self.process_lambda, lmda): lmda for lmda in self.lambdas}
             for future in as_completed(futures):
                 result = future.result()

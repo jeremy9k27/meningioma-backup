@@ -32,6 +32,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+import joblib
 
 setup()
 
@@ -46,7 +47,7 @@ chr22q = LOOExperiment(
 
 # %%
 chr22q_train_metrics_by_lambda, chr22q_test_metrics_by_lambda, chr22q_nonzero_coefs, chr22q_best_lambda = chr22q.par_loo_model() 
-
+joblib.dump(chr22q, f'{output_folder}/{task}/chr22q.pkl')
 # %%
 methyl = LOOExperiment(
     prediction_task='MethylationSubgroup', 
