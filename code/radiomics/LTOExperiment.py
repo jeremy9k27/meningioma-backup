@@ -16,7 +16,7 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 class LTOExperiment:
-    def __init__(self, prediction_task, lambdas=[0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15], use_smote=True, scaler='Standard', seed=0, output_dir='data/lto', save=True):
+    def __init__(self, prediction_task, lambdas=[0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15], use_smote=True, scaler='Standard', seed=0, output_dir='data/lto', save=True, debug=False):
         """
         Initialize the experiment with the provided settings. 
         
@@ -74,6 +74,9 @@ class LTOExperiment:
         self.constant_feats = [col for col in self.X.columns if self.X[col].nunique() == 1]
         self.X = self.X.drop(columns=self.constant_feats)
         self.feat_names = self.X.columns
+
+        if debug:
+            self.X = self.X[:15]
 
     def sigmoid(self, x): return 1/(1 + np.exp(-x)) 
 
@@ -462,6 +465,9 @@ class LTOExperiment:
                 nonzero_coefs = coefs.drop(columns=zero_feats)
                 nonzero_coefs = nonzero_coefs.T
 
+                if nonzero_coefs.empty:
+                    print(f"No non-zero coefficients for {biomarker}")
+                    continue
                 nonzero_coefs['Absolute Sum'] = nonzero_coefs.abs().sum(axis=1)
                 nonzero_coefs = nonzero_coefs.sort_values(by='Absolute Sum', ascending=False)
 
@@ -605,7 +611,7 @@ class LTOExperiment:
 
         return {
             'lambda': lmda,
-            'train_metrics': pd.DataFrame(list(train_metrics)),
+            'train_metrics': pd.concat(train_metrics, ignore_index=True),
             'val_metrics': pd.DataFrame(list(val_metrics)),
             'test_probs': np.stack(test_probs).squeeze(),
             'test_preds': np.stack(test_preds).squeeze(),
