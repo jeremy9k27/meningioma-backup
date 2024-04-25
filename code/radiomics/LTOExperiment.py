@@ -15,8 +15,6 @@ import pandas as pd
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-def sigmoid(x): return 1/(1 + np.exp(-x)) 
-
 class LTOExperiment:
     def __init__(self, prediction_task, lambdas=[0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15], use_smote=True, scaler='Standard', seed=0, output_dir='data/lto', save=True):
         """
@@ -76,6 +74,8 @@ class LTOExperiment:
         self.constant_feats = [col for col in self.X.columns if self.X[col].nunique() == 1]
         self.X = self.X.drop(columns=self.constant_feats)
         self.feat_names = self.X.columns
+
+    def sigmoid(self, x): return 1/(1 + np.exp(-x)) 
 
     def _plot_confusion_matrix(self, y_true, y_pred):
         """Plots a confusion matrix given y_true labels and y_pred predictions and returns the matrix."""
@@ -536,10 +536,10 @@ class LTOExperiment:
 
     def ensemble(self, coef, intercept, X_query):
         if self.n_classes == 2:
-            raw_scores = sigmoid(X_query @ coef.T + intercept)
+            raw_scores = self.sigmoid(X_query @ coef.T + intercept)
             probs = np.vstack([1 - raw_scores, raw_scores]).T
         else:
-            raw_scores = np.stack([sigmoid(X_query @ coef[:, c, :].T + intercept[:, c]) for c in range(coef.shape[1])]).T
+            raw_scores = np.stack([self.sigmoid(X_query @ coef[:, c, :].T + intercept[:, c]) for c in range(coef.shape[1])]).T
             probs = raw_scores / raw_scores.sum(axis=1)[:, np.newaxis]
 
         prob_avg = np.mean(probs, axis=0)
@@ -556,6 +556,8 @@ class LTOExperiment:
 
         # collect training and validation results
         results = []
+
+        # Inner Loop (sequential, ~1.5min in total?)
         with ProcessPoolExecutor(max_workers=1) as executor:
             futures = [executor.submit(self.model_fit_predict, train_idx, val_idx, lmda)
                        for train_idx, val_idx in LeaveOneOut().split(X_train_val)]
@@ -588,7 +590,7 @@ class LTOExperiment:
     def process_lambda(self, lmda):
         results = []
 
-        # Outer loop defining test set
+        # Outer loop defining test set (Parallel, ~1.5min/fold, ~72folds, ~3.5min total?)
         with ProcessPoolExecutor(max_workers=32) as executor:
             # Create tasks for each train-test split
             futures = [executor.submit(self.inner_loop, train_val_idx, test_idx, lmda)
@@ -613,6 +615,7 @@ class LTOExperiment:
     def final_model_loo(self):
         results = []
 
+        # Final Model (sequential, ~1.5min?)
         with ProcessPoolExecutor(max_workers=1) as executor:
             futures = [executor.submit(self.model_fit_predict, train_idx, test_idx, self.best_lambda)
                        for train_idx, test_idx in LeaveOneOut().split(self.X)]
@@ -640,7 +643,7 @@ class LTOExperiment:
         val_metrics_by_lambda = {}
         test_metrics_by_lambda = {}
         
-        # Use ProcessPoolExecutor to parallelize the loop over lambdas
+        # Lambda Loop (sequential, ~3.5min/lambda?)
         with ProcessPoolExecutor(max_workers=1) as executor:
             futures = {executor.submit(self.process_lambda, lmda): lmda for lmda in self.lambdas}
             for future in as_completed(futures):
@@ -687,5 +690,3 @@ class LTOExperiment:
         self.val_metrics_by_lambda = val_metrics_by_lambda
         self.test_metrics_by_lambda = test_metrics_by_lambda
         self.final_model_dict = final_model_dict
-
-        return self.train_metrics_by_lambda, self.val_metrics_by_lambda, self.test_metrics_by_lambda, self.nonzero_coefs, self.best_lambda, self.final_model_dict
