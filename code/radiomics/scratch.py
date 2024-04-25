@@ -58,3 +58,19 @@ methyl = LOOExperiment(
 methyl_train_metrics_by_lambda, methyl_test_metrics_by_lambda, methyl_nonzero_coefs, methyl_best_lambda = methyl.par_loo_model(pmetric='Macro AUC') 
 
 # %%
+import sys
+import os
+
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+from preprocessing.utils import setup
+import joblib
+import numpy as np
+
+setup()
+
+exp = joblib.load('data/classic_loo/Chr22q/exp.pkl')
+exp2 = joblib.load('data/classic_loo/MethylationSubgroup/exp.pkl')
+# %%
