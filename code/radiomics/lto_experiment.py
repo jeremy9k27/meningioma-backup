@@ -15,10 +15,11 @@ import joblib
 
 setup()
 
-output_folder = 'data/lto_experiment'
-lambdas = np.arange(0.01, 1.29, 0.01) # 128 different lambdas
-
-tasks = ['Chr22q', 'MethylationSubgroup', 'Chr1p']
+output_folder = 'data/lto_experiment_debug'
+# lambdas = np.arange(0.01, 1.29, 0.01) # 128 different lambdas
+lambdas = [0.08, 0.12]
+# tasks = ['Chr22q', 'MethylationSubgroup', 'Chr1p']
+tasks = ['Chr22q', 'MethylationSubgroup']
 
 begin_time = time.time()
 start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

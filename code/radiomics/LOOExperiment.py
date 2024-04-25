@@ -602,5 +602,3 @@ class LOOExperiment:
 
         self.train_metrics_by_lambda = train_metrics_by_lambda
         self.test_metrics_by_lambda = test_metrics_by_lambda
-
-        return self.train_metrics_by_lambda, self.test_metrics_by_lambda, self.nonzero_coefs, self.best_lambda

@@ -1,4 +1,4 @@
-# %%
+# %% This took roughly 1h10min to run on Zeus last time...
 import sys
 import os
 
@@ -15,7 +15,7 @@ import joblib
 
 setup()
 
-output_folder = 'data/classic_loo'
+output_folder = 'data/classic_loo_train_metrics_fixed'
 lambdas = np.arange(0.01, 1.29, 0.01) # 128 different lambdas
 
 tasks = ['Chr22q', 'MethylationSubgroup', 'Chr1p']
