@@ -5,7 +5,7 @@
 # still need to do nested approach instead of current approach..!
 # still need to incorporate collage features
 # also try active learning at this point
-from Models import TextureAnalysisModel
+from code.radiomics.deprecated.Models import TextureAnalysisModel
 import numpy as np
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import GridSearchCV, RepeatedStratifiedKFold, LeaveOneOut
