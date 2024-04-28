@@ -277,6 +277,8 @@ class LTOExperiment:
 
         print(f"Best lambda: {round(self.best_lambda, 2)}")
 
+        self.plotter.set_best_lambda(self.best_lambda)
+        
         self.final_model_loo()
         self.train_metrics_by_lambda = train_metrics_by_lambda
         self.val_metrics_by_lambda = val_metrics_by_lambda

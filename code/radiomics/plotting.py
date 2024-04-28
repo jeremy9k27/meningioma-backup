@@ -29,6 +29,9 @@ class LTOPlotter:
         
         self.save = save
 
+    def set_best_lambda(self, best_lambda):
+        self.best_lambda = best_lambda
+
     def _plot_confusion_matrix(self, y_true, y_pred):
         """Plots a confusion matrix given y_true labels and y_pred predictions and returns the matrix."""
         conf_matrix = confusion_matrix(y_true, y_pred)
