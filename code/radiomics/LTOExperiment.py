@@ -16,7 +16,7 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 class LTOExperiment:
-    def __init__(self, prediction_task, lambdas=[0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15], use_smote=True, scaler='Standard', seed=0, output_dir='data/lto', save=True, debug=False):
+    def __init__(self, prediction_task, lambdas=[0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15], use_smote=True, scaler='Standard', seed=0, output_dir='data/lto', save=True, debug=False, best_lambda=None):
         """
         Initialize the experiment with the provided settings. 
         
@@ -31,13 +31,18 @@ class LTOExperiment:
         self.use_smote = use_smote
         self.scaler = scaler
         self.seed = seed
-        self.output_dir = f"{output_dir}/{prediction_task}"
+        if best_lambda is not None:
+            self.best_lambda = best_lambda
+            self.output_dir = f"{output_dir}/{prediction_task}/lambda_{best_lambda}"
+        else:
+            self.output_dir = f"{output_dir}/{prediction_task}"
+        
         self.lto_evolution_dir = f"{self.output_dir}/evolution_curves"
         for d in [self.output_dir, self.lto_evolution_dir]:
             if not os.path.exists(d) and save: os.makedirs(d)
         
         self.save = save
-
+        
         # Setting we don't typically need to change...
         self.feat_file = f"data/radiomics/features6/features_wide.csv" # File location with the radiomics features in wide format
         self.lr_params = {
@@ -541,9 +546,12 @@ class LTOExperiment:
         return (coefs, intercepts, test_probs, test_preds, y_test, train_metrics)
 
     def ensemble(self, coef, intercept, X_query):
+        # X_query = test subject
+        # X_val
+        # X_train (N - 2) subjects
         if self.n_classes == 2:
-            raw_scores = self.sigmoid(X_query @ coef.T + intercept)
-            probs = np.vstack([1 - raw_scores, raw_scores]).T
+            raw_scores = self.sigmoid(X_query @ coef.T + intercept) # (N, 1)
+            probs = np.vstack([1 - raw_scores, raw_scores]).T # (N, 2)
         else:
             raw_scores = np.stack([self.sigmoid(X_query @ coef[:, c, :].T + intercept[:, c]) for c in range(coef.shape[1])]).T
             probs = raw_scores / raw_scores.sum(axis=1)[:, np.newaxis]
@@ -618,11 +626,11 @@ class LTOExperiment:
             'y_test': np.stack(y_test).squeeze()
         }
 
-    def final_model_loo(self):
+    def final_model_loo(self, max_workers=1):
         results = []
 
         # Final Model (sequential, ~1.5min?)
-        with ProcessPoolExecutor(max_workers=1) as executor:
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(self.model_fit_predict, train_idx, test_idx, self.best_lambda)
                        for train_idx, test_idx in LeaveOneOut().split(self.X)]
 
@@ -632,7 +640,7 @@ class LTOExperiment:
         # Unpack results
         coefs, intercepts, test_probs, test_preds, y_test, train_metrics = zip(*results)
 
-        return {
+        final_model_dict = {
             'coefs': np.stack(coefs).squeeze(),
             'intercepts': np.stack(intercepts).squeeze(),
             'test_probs': np.stack(test_probs).squeeze(),
@@ -640,6 +648,19 @@ class LTOExperiment:
             'y_test': np.stack(y_test).squeeze(),
             'train_metrics': pd.DataFrame(list(train_metrics))
         }
+    
+        self.coef = final_model_dict['coefs']
+        self.intercept = final_model_dict['intercepts']
+        self.test_probs = final_model_dict['test_probs']
+        self.y_test = final_model_dict['y_test']
+
+        self.nonzero_coefs = self.plot_coefs()
+        if self.n_classes > 2:
+            self._plot_multiclass_results(self.test_probs, label_binarize(self.y_test, classes=np.arange(self.n_classes)))
+        else:
+            self._plot_binary_results(self.test_probs, self.y_test)
+
+        self.final_model_dict = final_model_dict
 
     def par_lto_model(self, pmetric='AUC'):
         # Preparing storage dictionaries
@@ -678,21 +699,7 @@ class LTOExperiment:
 
         print(f"Best lambda: {round(self.best_lambda, 2)}")
 
-        # These don't yet exist, need to get them from a fn like self.coef, self.intercept, self.test_probs, self.y_test = final_model_loo(self.best_lambda)
-        # self.coef, self.intercept, self.test_probs, self.y_test = self.final_model_loo()
-        final_model_dict = self.final_model_loo()
-        self.coef = final_model_dict['coefs']
-        self.intercept = final_model_dict['intercepts']
-        self.test_probs = final_model_dict['test_probs']
-        self.y_test = final_model_dict['y_test']
-
-        self.nonzero_coefs = self.plot_coefs()
-        if self.n_classes > 2:
-            self._plot_multiclass_results(self.test_probs, label_binarize(self.y_test, classes=np.arange(self.n_classes)))
-        else:
-            self._plot_binary_results(self.test_probs, self.y_test)
-
+        self.final_model_loo()
         self.train_metrics_by_lambda = train_metrics_by_lambda
         self.val_metrics_by_lambda = val_metrics_by_lambda
         self.test_metrics_by_lambda = test_metrics_by_lambda
-        self.final_model_dict = final_model_dict
