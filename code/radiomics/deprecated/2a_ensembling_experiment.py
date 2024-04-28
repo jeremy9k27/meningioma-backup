@@ -1,4 +1,4 @@
-from Experiment import Experiment
+from code.radiomics.deprecated.Experiment import Experiment
 import time
 from datetime import datetime
 import sys
