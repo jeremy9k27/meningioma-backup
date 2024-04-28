@@ -19,6 +19,18 @@ from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
 import hashlib
 
+def split_array(array, value):
+    # Find the index of the specified value in the array
+    index = np.where(array == value)[0][0]
+    
+    # Create one array with the specified value
+    array_with_value = array[index:index+1]
+    
+    # Create another array with the remaining values
+    remaining_array = np.concatenate([array[:index], array[index+1:]])
+    
+    return remaining_array, array_with_value
+
 # Assuming df is your DataFrame
 def create_hash(row):
     # Create a unique string from all row entries, ensuring consistent order
@@ -201,7 +213,7 @@ def prep_data_for_loocv(features_file='data/radiomics/features6/features_wide.cs
     if scaler_obj is not None:
         X = pd.DataFrame(scaler_obj.fit_transform(X), columns=X.columns)
     
-    X['subject_ID'] = X.apply(create_hash, axis=1)
+    # X['subject_ID'] = X.apply(create_hash, axis=1)
     return X, y
 
 def plot_corr_matrix(X, outcome='?', test_size='?', output_dir=None):

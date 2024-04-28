@@ -15,10 +15,10 @@ import joblib
 
 setup()
 
-output_folder = 'data/lto_experiment'
+output_folder = 'data/CORRECT_lto_exp_coarser_lambdas_42824'
 # lambdas = np.arange(0.01, 1.29, 0.01) # 128 different lambdas
-lambdas = np.arange(0.05, 0.23, 0.01) # 18 different lambdas
-tasks = ['Chr22q', 'MethylationSubgroup', 'Chr1p']
+lambdas = np.arange(0.1, 2.1, 0.1) # np.arange(0.05, 0.23, 0.01) # 20 different lambdas
+tasks = ['MethylationSubgroup', 'Chr22q', 'Chr1p']
 
 begin_time = time.time()
 start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

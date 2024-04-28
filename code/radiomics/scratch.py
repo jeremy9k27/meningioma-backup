@@ -74,3 +74,31 @@ setup()
 exp = joblib.load('data/classic_loo/Chr22q/exp.pkl')
 exp2 = joblib.load('data/classic_loo/MethylationSubgroup/exp.pkl')
 # %%
+import numpy as np
+np.arange(0.2, 2.0, 0.2)
+
+# %%
+import numpy as np
+
+def split_array(array, value):
+    # Find the index of the specified value in the array
+    index = np.where(array == value)[0][0]
+    
+    # Create one array with the specified value
+    array_with_value = array[index:index+1]
+    
+    # Create another array with the remaining values
+    remaining_array = np.concatenate([array[:index], array[index+1:]])
+    
+    return array_with_value, remaining_array
+
+# %%
+# Example usage
+n = 10
+array = np.arange(n)
+value = 5
+array_with_value, remaining_array = split_array(array, value)
+
+print("Array with value:", array_with_value)
+print("Remaining array:", remaining_array)
+# %%
