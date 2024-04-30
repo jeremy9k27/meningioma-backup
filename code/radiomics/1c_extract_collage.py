@@ -29,7 +29,6 @@ import time
 from datetime import datetime
 import SimpleITK as sitk
 import collageradiomics
-from concurrent.futures import ProcessPoolExecutor, as_completed
 import joblib
 
 # Set up the directories and paths, define global constants
@@ -40,7 +39,6 @@ SEGS_PATHS = [f for f in os.listdir(SEGS_DIR) if f.startswith('Segmentation')]
 OUTPUT_DIR = 'data/collage'
 LOG_FILE = f'{OUTPUT_DIR}/log.txt'
 MODALITIES = ['AX_3D_T1_POST', 'AX_ADC', 'SAG_3D_FLAIR']
-WORKERS = 32
 
 # Collage hyperparameters to search thru
 HARALICK_WINDOW_SIZES = [9, 11] # 3, 5, 7, 9, 11
@@ -92,7 +90,7 @@ def get_segs_for_subject(sub_no):
             if 5 in seg_labels:
                 seg_labels.append(156)
 
-    seg_labels.append(22) # Add the whole tumor mask label
+    if len(seg_labels) > 1: seg_labels.append(22) # Add the whole tumor mask label
     
     # Create list of masks, one for each present segmentation label
     mask_arrays = []
@@ -155,62 +153,74 @@ def get_mris_for_subject(sub_no):
     mri_full_paths = [f'{MRI_DIR}/{sub_no}/{session}/{m}/{session}_{m}.nii.gz' for m in mri_paths]
     mri_modalities = [m.split('-')[-1] for m in mri_paths]
 
+    final_paths = []
+    final_modalities = []
     for i, found_mod in enumerate(mri_modalities):
-        if found_mod not in MODALITIES:
-            mri_full_paths.pop(i)
-            mri_modalities.pop(i)
+        if found_mod in MODALITIES:
+            final_paths.append(mri_full_paths[i])
+            final_modalities.append(found_mod)
     
-    return mri_full_paths, mri_modalities
+    return final_paths, final_modalities
 
-def run_collage(sub_no, mask, label, mri_path, mri_modality, window_size, bin_size, c_output_dir):
+def run_collage(sub_no, window_size, bin_size, c_output_dir):
     """
     Runs the collage feature extraction for a single subject-mask-modality combination
 
     Parameters
     ----------
     sub_no (int): The subject number
-    mask (np.ndarray): The segmentation mask to use for feature extraction
-    label (int): The label of the segmentation mask
-    mri_path (str): The path to the MRI modality to use for feature extraction
-    mri_modality (str): The MRI modality to use for feature extraction
     window_size (int): The window size to use for the Haralick texture extraction
     bin_size (int): The bin size to use for the Haralick texture extraction
+    c_output_dir (str): The output directory to save the collage features to
     
     Returns
     -------
     None
     """
-    output_filepath = f'{c_output_dir}/subject-{sub_no}_{mri_modality}_seg-{label}.joblib'
-    if os.path.exists(output_filepath):
-        logging.info(f'Collage features for subject {sub_no} MRI {mri_modality} label {label} already exist, skipping...')
-        return True
-    else:
-        logging.info(f'Extracting collage features for subject {sub_no}, MRI {mri_modality}, segmentation label {label}...')
-        try:
-            # Load the MRI image, swap axes of mri and mask..!
-            mri = sitk.GetArrayFromImage(sitk.ReadImage(mri_path))
-            mri = np.swapaxes(mri, 0, 2)
-            mask = np.swapaxes(mask, 0, 2)
-
-            # Extract the collage features
-            collage = collageradiomics.Collage(
-                mri, 
-                mask, 
-                svd_radius=5,
-                haralick_window_size=window_size, 
-                num_unique_angles=bin_size
-            )
-            collage_features = collage.execute()
-
-            # Save the features to disk
-            joblib.dump(collage_features, output_filepath)
-            logging.info(f'Collage features for subject {sub_no}, MRI {mri_modality}, segmentation label {label} extracted and saved successfully!')
-            return True
-        
-        except Exception as e:
-            logging.error(f'Error extracting collage features for subject {sub_no}, MRI {mri_modality}, segmentation label {label}: {str(e)}')
+    mask_arrays, seg_labels = get_segs_for_subject(sub_no)
+    mri_paths, mri_modalities = get_mris_for_subject(sub_no)
+    masks = []
+    labels = []
+    paths = []
+    modalities = []
+    for i in range(len(seg_labels)):
+        for j in range(len(mri_modalities)):
+            masks.append(mask_arrays[i])
+            labels.append(seg_labels[i])
+            paths.append(mri_paths[j])
+            modalities.append(mri_modalities[j])
     
-    return False
+    for mask, label, path, modality in tqdm(zip(masks, labels, paths, modalities), desc=f'Processing subject {sub_no}', total=len(labels), colour='green', position=4, smoothing=0, leave=False):
+        output_filepath = f'{c_output_dir}/subject-{sub_no}_{modality}_seg-{label}.joblib'
+        if os.path.exists(output_filepath):
+            logging.info(f'Collage features for subject {sub_no} MRI {modality} label {label} already exist, skipping...')
+        else:
+            logging.info(f'Extracting collage features for subject {sub_no}, MRI {modality}, segmentation label {label}...')
+            try:
+                # Load the MRI image, swap axes of mri and mask..!
+                mri = sitk.GetArrayFromImage(sitk.ReadImage(path))
+                mri = np.swapaxes(mri, 0, 2)
+                mask = mask_arrays[i]
+                mask = np.swapaxes(mask, 0, 2)
+
+                # Extract the collage features
+                collage = collageradiomics.Collage(
+                    mri, 
+                    mask, 
+                    svd_radius=5,
+                    haralick_window_size=window_size, 
+                    num_unique_angles=bin_size
+                )
+                collage_features = collage.execute()
+
+                # Save the features to disk
+                joblib.dump(collage_features, output_filepath)
+                logging.info(f'Collage features for subject {sub_no}, MRI {modality}, segmentation label {label} extracted and saved successfully!')
+            
+            except Exception as e:
+                logging.error(f'Error extracting collage features for subject {sub_no}, MRI {modality}, segmentation label {label}: {str(e)}')
+    
+    return True
 
 # %%
 def main():
@@ -218,6 +228,9 @@ def main():
     _, _, labels_df = count_subjects(verbose=False, drop_by_outcome=False)
     subjects = labels_df['Subject Number'].to_list()
     n = len(subjects)
+    
+    # reverse order of subjects list
+    subjects = subjects[::-1]
 
     # Set up logging
     logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(message)s')
@@ -226,27 +239,7 @@ def main():
     bar = '-' * 80
     logging.info(bar)
     logging.info(f'Starting collage feature extraction for n = {n} subjects at {overall_start_time}')
-    
-    # Make an overall list of the subject-mask-modality combinations that need to be extracted
-    all_subjects = []
-    all_masks = []
-    all_labels = []
-    all_mri_paths = []
-    all_mri_modalities = []
-    for subject in subjects:
-        mask_arrays, seg_labels = get_segs_for_subject(subject)
-        mri_paths, mri_modalities = get_mris_for_subject(subject)
-        for i in range(len(seg_labels)):
-            for j in range(len(mri_modalities)):
-                all_subjects.append(subject)
-                all_masks.append(mask_arrays[i])
-                all_labels.append(seg_labels[i])
-                all_mri_paths.append(mri_paths[j])
-                all_mri_modalities.append(mri_modalities[j])
-
-    total_num_extractions = len(all_subjects)
-    logging.info(f'Total number of extractions to be performed for a single Collage setting: {total_num_extractions}')
-    
+        
     total_collage_settings = len(HARALICK_WINDOW_SIZES) * len(BIN_SIZES)
     logging.info(f'Total number of Collage hyperparameter settings to be tested: {total_collage_settings}')
     logging.info(bar)
@@ -263,14 +256,8 @@ def main():
             c_output_dir = f'{OUTPUT_DIR}/windowsize-{window_size}_binsize-{bin_size}'
             if not os.path.exists(c_output_dir): os.makedirs(c_output_dir)
         
-            # run extraction in parallel...
-            results = []
-            with ProcessPoolExecutor(max_workers=WORKERS) as executor:
-                futures = [executor.submit(run_collage, sub, mask, label, mri_path, mri_modality, window_size, bin_size, c_output_dir) for sub, mask, label, mri_path, mri_modality in zip(all_subjects, all_masks, all_labels, all_mri_paths, all_mri_modalities)]
-                for future in tqdm(as_completed(futures), total=total_num_extractions):
-                    results.append(future.result())
-
-            num_successful_extractions = sum(results)
+            for sub in tqdm(subjects, total=len(subjects)):
+                run_collage(sub, window_size, bin_size, c_output_dir)
 
             # Log the time elapsed for this setting
             end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -279,7 +266,6 @@ def main():
             minutes, seconds = divmod(rem, 60)
             time_elapsed = "{:0>2}:{:0>2}:{:05.2f}".format(int(hours),int(minutes),seconds)
             logging.info(f'Completed collage feat extraction for setting {collage_setting_no}/{total_collage_settings} using window size {window_size} and bin size {bin_size} at {end_time}')
-            logging.info(f'Number of successful extractions: {num_successful_extractions}/{total_num_extractions}')
             logging.info(f'Elapsed time: {time_elapsed}\n')
             logging.info(bar)
             collage_setting_no += 1
