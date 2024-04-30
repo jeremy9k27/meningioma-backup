@@ -5,11 +5,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from utils import plot_train_test_split, plot_corr_matrix, prep_data_for_loocv, split_array
 from sklearn.preprocessing import label_binarize
-from sklearn.metrics import RocCurveDisplay, roc_curve, auc, confusion_matrix, accuracy_score, precision_score, recall_score, f1_score, balanced_accuracy_score, matthews_corrcoef, jaccard_score
-from itertools import cycle
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-import seaborn as sns
 from tqdm import tqdm
 import pandas as pd
 import os
