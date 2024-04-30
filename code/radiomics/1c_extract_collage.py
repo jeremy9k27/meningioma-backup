@@ -43,8 +43,8 @@ MODALITIES = ['AX_3D_T1_POST', 'AX_ADC', 'SAG_3D_FLAIR']
 WORKERS = 32
 
 # Collage hyperparameters to search thru
-HARALICK_WINDOW_SIZES = [3, 5, 7, 9, 11]
-BIN_SIZES = [30, 64] # 10, 15, 20, 25, 30, 64 ??
+HARALICK_WINDOW_SIZES = [9, 11] # 3, 5, 7, 9, 11
+BIN_SIZES = [64, 30] # 10, 15, 20, 25, 30, 64 ??
 
 # %%
 if not os.path.exists(OUTPUT_DIR): os.makedirs(OUTPUT_DIR)
@@ -236,8 +236,8 @@ def main():
     for subject in subjects:
         mask_arrays, seg_labels = get_segs_for_subject(subject)
         mri_paths, mri_modalities = get_mris_for_subject(subject)
-        for i in len(seg_labels):
-            for j in len(mri_modalities):
+        for i in range(len(seg_labels)):
+            for j in range(len(mri_modalities)):
                 all_subjects.append(subject)
                 all_masks.append(mask_arrays[i])
                 all_labels.append(seg_labels[i])
