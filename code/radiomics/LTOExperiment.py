@@ -88,7 +88,7 @@ class LTOExperiment:
             raw_scores = self.sigmoid(X_query @ coef.T + intercept) # (N, 1)
             probs = np.vstack([1 - raw_scores, raw_scores]).T # (N, 2)
         else:
-            raw_scores = np.stack([self.sigmoid(X_query @ coef[:, c, :].T + intercept[:, c]) for c in range(coef.shape[1])]).T
+            raw_scores = np.stack([self.sigmoid(X_query @ coef[:, c, :].T + intercept[:, c]) for c in range(coef.shape[1])]).T.squeeze()
             probs = raw_scores / raw_scores.sum(axis=1)[:, np.newaxis]
 
         prob_avg = np.mean(probs, axis=0)

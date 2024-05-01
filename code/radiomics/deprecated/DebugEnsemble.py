@@ -103,7 +103,7 @@ class LTOExperiment:
             raw_scores = self.sigmoid(X_query @ coef.T + intercept) # (N, 1)
             probs = np.vstack([1 - raw_scores, raw_scores]).T # (N, 2)
         else:
-            raw_scores = np.stack([self.sigmoid(X_query @ coef[:, c, :].T + intercept[:, c]) for c in range(coef.shape[1])]).T
+            raw_scores = np.stack([self.sigmoid(X_query @ coef[:, c, :].T + intercept[:, c]) for c in range(coef.shape[1])]).T.squeeze()
             probs = raw_scores / raw_scores.sum(axis=1)[:, np.newaxis]
 
         prob_avg = np.mean(probs, axis=0)
@@ -119,11 +119,6 @@ class LTOExperiment:
         y_train = self.y[train_idx]
         X_test = self.X.iloc[test_idx]
         y_test = self.y[test_idx]
-
-        X_train['subject_ID'].to_csv(f"{self.lto_train_splits_dir}/outeridx-{outer_idx}-inneridx-{inner_idx}.csv", header=False)
-        X_test['subject_ID'].to_csv(f"{self.lto_val_splits_dir}/outeridx-{outer_idx}-inneridx-{inner_idx}.csv", header=False)
-        X_train = X_train.drop(columns=['subject_ID'])
-        X_test = X_test.drop(columns=['subject_ID'])
 
         to_sub = len(self.X) - len(X_train)
         if self.use_smote:
@@ -153,8 +148,6 @@ class LTOExperiment:
         train_val_idx, test_idx = split
         X_test = self.X.iloc[test_idx]
         y_test = self.y[test_idx]
-
-        X_test['subject_ID'].to_csv(f"{self.lto_test_splits_dir}/outeridx-{outer_idx}.csv", header=False)
 
         inner_splits = [split_array(train_val_idx, num) for num in train_val_idx]
 
@@ -187,7 +180,6 @@ class LTOExperiment:
         coefs = np.stack(coefs).squeeze()
         intercepts = np.stack(intercepts).squeeze()
         # Actually get test_probs, and test_preds
-        X_test = X_test.drop(columns=['subject_ID'])
         test_probs, _, test_preds = self.ensemble(coefs, intercepts, X_test) # _ = test_stds, same shape as test_probs, namely (self.n_classes,)
 
         return (train_metrics, val_metrics, test_probs, test_preds, y_test)
@@ -226,6 +218,6 @@ class LTOExperiment:
         if self.n_classes == 2:
             self.plotter._plot_binary_results(probs=lambda_results['test_probs'], y_true=lambda_results['y_test'])
         else:
-            self.plotter._plot_multiclass_results(probs=lambda_results['test_probs'], y_true=lambda_results['y_test'])
+            self.plotter._plot_multiclass_results(probs=lambda_results['test_probs'], y_true=label_binarize(lambda_results['y_test'], classes=np.arange(self.n_classes)))
         
         
