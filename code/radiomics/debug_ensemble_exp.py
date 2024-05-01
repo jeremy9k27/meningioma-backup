@@ -15,8 +15,8 @@ import joblib
 setup()
 
 output_folder = 'data/debug_ensemble'
-tasks = ['Chr22q', 'Chr1p'] # 'MethylationSubgroup'
-lambdas = [1.0, 0.9]
+tasks = ['MethylationSubgroup'] # 'MethylationSubgroup'
+lambdas = [0.1]
 begin_time = time.time()
 start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 print(f'\n\nStarted debug_ensemble_exp.py at: {start_time}\n\n')
