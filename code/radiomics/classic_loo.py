@@ -15,10 +15,10 @@ import joblib
 
 setup()
 
-output_folder = 'data/classic_loo_train_metrics_fixed'
-lambdas = np.arange(0.01, 1.29, 0.01) # 128 different lambdas
+output_folder = 'data/classic_loo_pca_regression_5-1-24' # 'data/classic_loo_pca_regression_5-1-24' # 'data/classic_loo'
+lambdas = np.arange(0.2, 2.2, 0.2) # np.arange(0.2, 2.2, 0.2) # coarse = np.arange(1.0, 9.0, 1.0) # fine = np.arange(0.2, 2.2, 0.2) # np.arange(0.06, 0.16, 0.02)
 
-tasks = ['Chr22q', 'MethylationSubgroup', 'Chr1p']
+tasks = ['Chr22q'] # ['Chr22q', 'MethylationSubgroup', 'Chr1p']
 
 begin_time = time.time()
 start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -30,13 +30,14 @@ for task in tasks:
         prediction_task=task, 
         lambdas=lambdas,
         output_dir=output_folder,
-        use_smote=True
+        use_smote=True,
+        feat_file=f"data/pca_results/{task}/pca_scores.csv"
     )
 
     if task == 'MethylationSubgroup':
-        pmetric = 'Macro AUC'
+        pmetric = 'Balanced Accuracy'
     else:
-        pmetric = 'AUC'
+        pmetric = 'Balanced Accuracy'
 
     exp.par_loo_model(pmetric=pmetric)
 

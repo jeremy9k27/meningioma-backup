@@ -256,4 +256,31 @@ with ProcessPoolExecutor(max_workers=2) as executor:
         results.append(future.result())
 
 print(sum(results))
+
+
+# %%
+import sys
+import os
+
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+from preprocessing.utils import setup
+from utils import prep_data_for_pca
+import numpy as np
+import joblib
+from sklearn.preprocessing import StandardScaler
+import pandas as pd
+setup()
+
+data_dir = 'data/standardized_feats_for_pca/'
+if not os.path.exists(data_dir): os.makedirs(data_dir)
+
+for task in ['MethylationSubgroup', 'Chr22q']:
+    X  = prep_data_for_pca(outcome=task, scaler_obj=StandardScaler())
+    constant_feats = [col for col in X.columns if X[col].nunique() == 1]
+    X = X.drop(columns=constant_feats)
+    X.to_csv(f'{data_dir}/{task}.csv', index=False)
+
 # %%

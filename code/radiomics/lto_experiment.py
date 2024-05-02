@@ -15,9 +15,9 @@ import joblib
 
 setup()
 
-output_folder = 'data/CORRECT_lto_exp_coarser_lambdas_42824'
+output_folder = 'data/lto_fine_lambdas_5-1-24'
 # lambdas = np.arange(0.01, 1.29, 0.01) # 128 different lambdas
-lambdas = np.arange(0.1, 2.1, 0.1) # np.arange(0.05, 0.23, 0.01) # 20 different lambdas
+lambdas = np.arange(0.06, 0.16, 0.02) # np.arange(0.05, 0.23, 0.01) # 20 different lambdas
 tasks = ['MethylationSubgroup', 'Chr22q', 'Chr1p']
 
 begin_time = time.time()
@@ -35,9 +35,9 @@ for task in tasks:
     )
 
     if task == 'MethylationSubgroup':
-        pmetric = 'Macro AUC'
+        pmetric = 'Balanced Accuracy'
     else:
-        pmetric = 'AUC'
+        pmetric = 'Balanced Accuracy'
 
     exp.par_lto_model(pmetric=pmetric)
 
