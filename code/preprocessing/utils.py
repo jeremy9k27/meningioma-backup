@@ -226,6 +226,7 @@ def explore_3D_array_with_mask_contour(arr: np.ndarray, mask: np.ndarray, thickn
 
     plt.figure(figsize=(7,7))
     plt.imshow(arr_with_contours)
+    plt.axis('off')
     plt.title(title)
 
   interact(fn, SLICE=(0, arr.shape[0]-1))

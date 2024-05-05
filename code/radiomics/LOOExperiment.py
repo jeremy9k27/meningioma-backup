@@ -16,7 +16,7 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 class LOOExperiment:
-    def __init__(self, prediction_task, lambdas=[0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15], use_smote=True, scaler='Standard', seed=0, output_dir='data/radiomics_loo', save=True):
+    def __init__(self, prediction_task, lambdas=[0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15], use_smote=True, scaler='Standard', seed=0, output_dir='data/radiomics_loo', save=True, feat_file="data/radiomics/features6/features_wide.csv"):
         """
         Initialize the experiment with the provided settings. 
         
@@ -39,7 +39,7 @@ class LOOExperiment:
         self.save = save
 
         # Setting we don't typically need to change...
-        self.feat_file = f"data/radiomics/features6/features_wide.csv" # File location with the radiomics features in wide format
+        self.feat_file = feat_file # File location with the radiomics features in wide format
         self.lr_params = {
             'penalty': 'l1', 
             'class_weight': 'balanced', 
@@ -362,6 +362,11 @@ class LOOExperiment:
         max_perf_met_index = test_df[metric].idxmax()
         best_lambda = round(test_df.loc[max_perf_met_index, 'Lambda'], 2)
         best_value = round(test_df.loc[max_perf_met_index, metric], 3)
+
+        # sort dfs by lambda value
+        train_mean_df = train_mean_df.sort_values(by='Lambda')
+        train_std_df = train_std_df.sort_values(by='Lambda')
+        test_df = test_df.sort_values(by='Lambda')
 
         plt.figure(figsize=(12, 8))
 

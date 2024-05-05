@@ -110,6 +110,38 @@ def plot_train_test_split(y_train, y_test, output_file=None, class_ids=None):
         plt.show()
     plt.close()
 
+def plot_data_split(y, title='MethylationSubgroup', output_file=None):
+    """
+    Bar graph showing the number of samples per class
+    """    
+    class_counts = pd.Series(y).value_counts()
+
+    if len(np.unique(y)) == 3:
+        class_ids = ['Merlin Intact', 'Immune Enriched', 'Hypermetabolic']
+    else:
+        class_ids = ['Intact', 'Loss']
+    
+    # Plotting the bar graph of class counts
+    plt.figure(figsize=(6, 4))
+    bars = sns.barplot(x=class_ids, y=class_counts.values, palette='viridis')
+    plt.ylabel('# of samples')
+    plt.title(f'{title} (n = {len(y)})')
+    for bar in bars.patches:
+        bars.annotate(format(bar.get_height(), '.0f'),
+                  (bar.get_x() + bar.get_width() / 2, bar.get_height() / 2),
+                  ha='center', va='center',
+                  size=12,
+                  color='white',
+                  xytext=(0, 0),
+                  textcoords='offset points')
+
+    plt.tight_layout()
+    if output_file is not None:
+        plt.savefig(output_file)
+    else:
+        plt.show()
+    plt.close()
+
 def clean_feature_names(strings):
     """Tidies up the feature names by removing specified substrings and replacing them with ""."""
     replacements = [
@@ -248,17 +280,44 @@ def prep_data_for_loocv(features_file='data/radiomics/features6/features_wide.cs
     # X['subject_ID'] = X.apply(create_hash, axis=1)
     return X, y
 
-def plot_corr_matrix(X, outcome='?', test_size='?', output_dir=None):
+def prep_data_for_pca(features_file='data/radiomics/features6/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', scaler_obj=None):
+    # read in features and labels, merge
+    features = pd.read_csv(features_file)
+    labels = pd.read_csv(labels_file)
+    labels = labels.dropna(subset=[outcome])
+    labels = labels[labels['Subject Number'].isin(features['Subject Number'])]
+    data = features.merge(labels, on='Subject Number')
+    data.columns = clean_feature_names(data.columns)
+    data = data.dropna(axis=1, how='all').fillna(0)
+    X = data.drop(columns=['Subject Number', 'MethylationSubgroup', 'Chr1p', 'Chr22q', 'Chr9p', 'TERT'])
+    y = data[outcome].values.astype(int)
+    subject_ids = data['Subject Number'].values
+
+    # scale data if specified
+    if scaler_obj is not None:
+        X = pd.DataFrame(scaler_obj.fit_transform(X), columns=X.columns)
+    
+    constant_feats = [col for col in X.columns if X[col].nunique() == 1]
+    X = X.drop(columns=constant_feats)
+
+    X['Subject Number'] = subject_ids
+    X[outcome] = y
+
+    return X
+
+def plot_corr_matrix(X, outcome='?', output_dir=None, normalizer=None):
     """Plots the correlation matrix of the radiomics training features."""
-    normalizer = MinMaxScaler()
-    X_normalized = pd.DataFrame(normalizer.fit_transform(X), columns=X.columns)
+    if normalizer is None:
+        X_normalized = X
+    else:
+        X_normalized = pd.DataFrame(normalizer.fit_transform(X), columns=X.columns)
     corr_matrix = X_normalized.corr()
-    clean_names = clean_feature_names(X.columns)
-    plt.figure(figsize=(24, 20))
-    sns.heatmap(corr_matrix, annot=False, fmt=".2f", cmap="viridis", xticklabels=clean_names, yticklabels=clean_names)
-    plt.xticks(rotation=45, ha='right')
-    plt.yticks(rotation=45, va='top')
-    plt.title(f"Top Radiomics Features Correlation Matrix: {outcome} (Train/test split: {X.shape[0]}/{test_size})")
+    clean_names = X.columns
+    plt.figure(figsize=(8, 8))
+    sns.heatmap(corr_matrix, annot=True, annot_kws={"size": 12}, fmt=".2f", cmap="viridis", xticklabels=clean_names, yticklabels=clean_names, square=False)
+    plt.xticks(rotation=45, ha='right', fontsize=12)
+    plt.yticks(rotation=45, va='top', fontsize=12)
+    plt.title(f"{outcome}: Top Radiomics Features Correlation Matrix")
     plt.tight_layout()
     if output_dir is not None:
         plt.savefig(f'{output_dir}/correlation_matrix.png')
