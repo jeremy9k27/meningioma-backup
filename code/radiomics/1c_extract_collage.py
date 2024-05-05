@@ -21,7 +21,7 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 from preprocessing.utils import setup, lsdir
-from utils import count_subjects
+from utils import count_subjects, write_ndarray
 from tqdm import tqdm
 import logging
 import numpy as np
@@ -36,7 +36,7 @@ setup()
 MRI_DIR = 'data/preprocessed_mri_scans/7_COMPLETED_PREPROCESSED'
 SEGS_DIR = 'data/segmentations/'
 SEGS_PATHS = [f for f in os.listdir(SEGS_DIR) if f.startswith('Segmentation')]
-OUTPUT_DIR = 'data/collage'
+OUTPUT_DIR = 'data/collage_sparse'
 LOG_FILE = f'{OUTPUT_DIR}/log.txt'
 MODALITIES = ['AX_3D_T1_POST', 'AX_ADC', 'SAG_3D_FLAIR']
 
@@ -214,7 +214,7 @@ def run_collage(sub_no, window_size, bin_size, c_output_dir):
                 collage_features = collage.execute()
 
                 # Save the features to disk
-                joblib.dump(collage_features, output_filepath)
+                write_ndarray(collage_features, output_filepath)
                 logging.info(f'Collage features for subject {sub_no}, MRI {modality}, segmentation label {label} extracted and saved successfully!')
             
             except Exception as e:
