@@ -18,8 +18,40 @@ import seaborn as sns
 from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
 import hashlib
+import joblib
+import scipy.sparse as sp
+
+def read_ndarray(fname, original_shape = (189, 233, 197, 13, 2)):
+    """
+    Reads a given fname which is expected to be a scipy.sparse 2d matrix, reshapes it into the original collage
+    feature shape it was expected to be saved from, and replaces 0s as NaNs. Returns as a numpy ndarray of original_shape.
+    """
+    dense_array = joblib.load(fname).toarray().reshape(original_shape)
+    dense_array[dense_array == 0] = np.nan
+    return dense_array
+
+def write_ndarray(arr, fname):
+    """
+    Writes a given numpy ndarray to a given filename as a sparse 2d matrix. NaN values are saved as 0s.
+    """
+    # copy array and replace NaNs with 0s, since scipy.sparse can't handle nans
+    arr_zeros = arr.copy()
+    arr_zeros[np.isnan(arr_zeros)] = 0
+
+    # reshape the array to be a 2D matrix, since scipy.sparse can't handle more than 2D
+    arr_zeros_reshaped = arr_zeros.reshape(arr.shape[0], -1)
+
+    # convert to sparse matrix
+    sparse_matrix = sp.csr_matrix(arr_zeros_reshaped)
+
+    # save to disk
+    joblib.dump(sparse_matrix, fname)
+
+    # check to make sure everything worked smoothly
+    assert np.allclose(read_ndarray(fname), arr, equal_nan=True), 'Arrays are not equal'
 
 def split_array(array, value):
+    """Custom LOO splitter object that can be nested, unlike sklearn's"""
     # Find the index of the specified value in the array
     index = np.where(array == value)[0][0]
     
