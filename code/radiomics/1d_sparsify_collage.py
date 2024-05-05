@@ -25,15 +25,15 @@ def get_dir_size(directory):
                 total_size += os.path.getsize(fp)
     return total_size / (1024 * 1024 * 1024)  # Convert bytes to GB
 
-old_dir = 'data/collage/windowsize-9_binsize-64'
-new_dir = 'data/collage_sparse/windowsize-9_binsize-64'
+old_dir = 'data/old_collage_large/windowsize-9_binsize-64'
+new_dir = 'data/collage_sparse2/windowsize-9_binsize-64'
 
 if not os.path.exists(new_dir): os.makedirs(new_dir)
 
 joblib_files = [f for f in os.listdir(old_dir) if f.endswith('.joblib')]
 n = len(joblib_files)
 
-logging.basicConfig(filename='data/collage_sparse/conversion_log.txt', level=logging.INFO, format='%(message)s')
+logging.basicConfig(filename='data/collage_sparse2/conversion_log.txt', level=logging.INFO, format='%(message)s')
 overall_begin_time = time.time()
 overall_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 bar = '-' * 80

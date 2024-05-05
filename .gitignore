@@ -227,6 +227,9 @@ rsconnect/
 # data directory
 data/
 
+# results directory
+results/
+
 # DICOM to NIFTI converter
 code/preprocessing/dcm2niix
 
