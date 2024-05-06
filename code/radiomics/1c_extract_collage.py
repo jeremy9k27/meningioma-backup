@@ -21,7 +21,7 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 from preprocessing.utils import setup, lsdir
-from utils import count_subjects
+from utils import count_subjects, write_ndarray
 from tqdm import tqdm
 import logging
 import numpy as np
@@ -29,14 +29,13 @@ import time
 from datetime import datetime
 import SimpleITK as sitk
 import collageradiomics
-import joblib
 
 # Set up the directories and paths, define global constants
 setup()
 MRI_DIR = 'data/preprocessed_mri_scans/7_COMPLETED_PREPROCESSED'
 SEGS_DIR = 'data/segmentations/'
 SEGS_PATHS = [f for f in os.listdir(SEGS_DIR) if f.startswith('Segmentation')]
-OUTPUT_DIR = 'data/collage'
+OUTPUT_DIR = 'data/collage_sparse'
 LOG_FILE = f'{OUTPUT_DIR}/log.txt'
 MODALITIES = ['AX_3D_T1_POST', 'AX_ADC', 'SAG_3D_FLAIR']
 
@@ -190,7 +189,7 @@ def run_collage(sub_no, window_size, bin_size, c_output_dir):
             paths.append(mri_paths[j])
             modalities.append(mri_modalities[j])
     
-    for mask, label, path, modality in tqdm(zip(masks, labels, paths, modalities), desc=f'Processing subject {sub_no}', total=len(labels), colour='green', position=4, smoothing=0, leave=False):
+    for mask, label, path, modality in tqdm(zip(masks, labels, paths, modalities), desc=f'Subject {sub_no}', total=len(labels), colour='green', position=1, smoothing=0, leave=False, dynamic_ncols=True):
         output_filepath = f'{c_output_dir}/subject-{sub_no}_{modality}_seg-{label}.joblib'
         if os.path.exists(output_filepath):
             logging.info(f'Collage features for subject {sub_no} MRI {modality} label {label} already exist, skipping...')
@@ -214,7 +213,7 @@ def run_collage(sub_no, window_size, bin_size, c_output_dir):
                 collage_features = collage.execute()
 
                 # Save the features to disk
-                joblib.dump(collage_features, output_filepath)
+                write_ndarray(collage_features, output_filepath)
                 logging.info(f'Collage features for subject {sub_no}, MRI {modality}, segmentation label {label} extracted and saved successfully!')
             
             except Exception as e:
@@ -233,7 +232,7 @@ def main():
     subjects = subjects[::-1]
 
     # Set up logging
-    logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(message)s')
+    logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s: %(message)s', datefmt='%m/%d %H:%M')
     overall_begin_time = time.time()
     overall_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     bar = '-' * 80
@@ -256,7 +255,7 @@ def main():
             c_output_dir = f'{OUTPUT_DIR}/windowsize-{window_size}_binsize-{bin_size}'
             if not os.path.exists(c_output_dir): os.makedirs(c_output_dir)
         
-            for sub in tqdm(subjects, total=len(subjects)):
+            for sub in tqdm(subjects, total=len(subjects), dynamic_ncols=True):
                 run_collage(sub, window_size, bin_size, c_output_dir)
 
             # Log the time elapsed for this setting
