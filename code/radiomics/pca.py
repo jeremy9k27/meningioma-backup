@@ -6,7 +6,7 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
-from preprocessing.utils import setup, lsdir, explore_3D_array_with_mask_contour
+from preprocessing.utils import setup, lsdir, explore_3D_array_with_mask_contour, rescale_linear
 from utils import prep_data_for_pca, plot_data_split, plot_corr_matrix
 import numpy as np
 from sklearn.preprocessing import StandardScaler
@@ -16,12 +16,15 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import joblib
 import plotly.graph_objects as go
+from ipywidgets import interact, IntSlider
+from ants import image_read
+import cv2
 
 setup()
 
 # directory handling
 data_dir = 'data/pca_results/'
-task = 'Chr22q'
+task = 'MethylationSubgroup'
 output_dir = f'{data_dir}/{task}'
 if not os.path.exists(output_dir): os.makedirs(output_dir)
 
@@ -83,7 +86,7 @@ def get_nonzero_feats(exp):
 
 exp = joblib.load(f'data/lto_fine_lambdas_5-1-24/{task}/exp.pkl')
 feats_dict = get_nonzero_feats(exp)
-c_coefs = feats_dict['Chr22q']
+c_coefs = feats_dict['Hypermetabolic']
 highlight_names = c_coefs[c_coefs['Cum Var Exp'] <= 0.99].index.to_list()
 
 X_sm = X[highlight_names]
@@ -93,7 +96,7 @@ plot_corr_matrix(X_sm, outcome=task)
 # %%
 exp = joblib.load(f'data/classic_loo_pca_regression_5-1-24/{task}/exp.pkl')
 feats_dict = get_nonzero_feats(exp)
-c_coefs = feats_dict['Chr22q']
+c_coefs = feats_dict['Hypermetabolic']
 pcs = c_coefs.index.to_list()[:6]
 
 # given list of strings, strip out the numbers
@@ -136,7 +139,7 @@ def plot_loadings(highlight_names, n_row=1, n_col=5, PCs=None, ann=True, by_sign
     x_coords = np.linspace(0, len(feat_names), len(feat_names))
     highlight_indices = [np.where(hn == feat_names)[0][0] for hn in highlight_names]
 
-    fig, axes = plt.subplots(n_row, n_col, figsize=(24, 18))
+    fig, axes = plt.subplots(n_row, n_col, figsize=(10, 10))
     fig.suptitle(f'{task} PCA Loadings', y = 1.05)
     ax = axes.flatten()
 
@@ -167,7 +170,10 @@ plot_loadings(highlight_names, 2, 3, PCs=pcs)
 
 # %%
 # Map classes to colors
-color_map = {0: 'red', 1: 'green', 2: 'blue'}
+if exp.n_classes > 2:
+    color_map = {0: 'blue', 1: 'green', 2: 'red'}
+else:
+    color_map = {0: 'blue', 1: 'red'}
 colors = [color_map[cls] for cls in np.arange(len(np.unique(y)))]
 
 # Create biplot for PC1 vs PC2
@@ -185,7 +191,6 @@ plt.show()
 
 # %%
 # Map classes to colors
-color_map = {0: 'red', 1: 'green', 2: 'blue'}
 colors = [color_map[cls] for cls in np.arange(len(np.unique(y)))]
 
 # Create a 3D plot for PC1 vs PC2 vs PC3
@@ -205,7 +210,6 @@ plt.show()
 # %%
 
 # Map classes to colors
-color_map = {0: 'blue', 1: 'red', 2: 'green'}
 colors = [color_map[cls] for cls in np.arange(len(np.unique(y)))]
 
 # Create a Plotly 3D scatter plot
@@ -235,33 +239,19 @@ fig.update_layout(
 fig.show()
 
 # %%
-feat_of_interest = highlight_names[0]
-feat_info = feat_of_interest.split('-')
-modality = feat_info[0]
-roi = feat_info[1]
-pyrad_name = feat_info[2]
-sorted_idxs = X[feat_of_interest].argsort()
-subject_by_feat = subject_ids[X[feat_of_interest].iloc[sorted_idxs].index.to_list()]
-feat_vals = X[feat_of_interest].iloc[sorted_idxs]
+roi_key = {
+    '1': 'enhancing', 
+    '2': 'other', 
+    '3': 'necrotic',
+    '4': 'edema',
+    '5': 'susceptibility', 
+    '6': 'restricted diffusion', 
+    '22': 'whole tumor',
+    '13': 'enhancing + necrotic',
+    '15': 'enhancing + susceptibility',
+    '156': 'enhancing + susceptibility + restricted diffusion'
+}
 
-# get top three, bottom three and middle three subjects and feat_vals
-top_three = subject_by_feat[-3:]
-top_three_vals = feat_vals[-3:]
-bottom_three = subject_by_feat[:3]
-bottom_three_vals = feat_vals[:3]
-middle_three = subject_by_feat[len(subject_by_feat)//2-1:len(subject_by_feat)//2+2]
-middle_three_vals = feat_vals[len(subject_by_feat)//2-1:len(subject_by_feat)//2+2]
-
-subject_nums = bottom_three.to_list() + middle_three.to_list() + top_three.to_list()
-subject_vals = bottom_three_vals.to_list() + middle_three_vals.to_list() + top_three_vals.to_list()
-
-# %%
-from ipywidgets import interact
-from ants import image_read
-import cv2
-import SimpleITK as sitk
-
-# %%
 def get_seg_for_subject(sub_no, roi, orientation='IAL'):
     """
     Given a subject number, gets all available segmentation masks of interest along with their labels
@@ -386,23 +376,85 @@ def get_mri_for_subject(sub_no, key, orientation='IAL', MRI_DIR='data/preprocess
     mri = image_read(mri_full_paths[path_idx], reorient=orientation).numpy()
 
     return mri, mri_modalities[path_idx]
+
+def get_max_slice(mask):
+    return np.argmax(np.sum(mask, axis=(1, 2)))
+
+def plot_mris(arr_list, mask_list, thickness=1, titles=None, suptitle='Suptitle'):
+    arr_list = [rescale_linear(a, 0, 1) for a in arr_list]
+    mask_list = [rescale_linear(m, 0, 1).astype(np.uint8) for m in mask_list]
+    max_slice_list = [get_max_slice(m) for m in mask_list]
+
+    num_images = len(arr_list)
+    sliders = {f'Slice {i}': IntSlider(min=0, max=arr_list[i].shape[0]-1, value=max_slice_list[i], description=f'Slice {i}') for i in range(num_images)}
+
+    def update_slices(**slices):
+        if len(titles) == 3:
+            fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+        else:
+            fig, axes = plt.subplots(3, 3, figsize=(12, 12))
+        
+        if num_images == 1:
+            axes = [axes]
+
+        fig.suptitle(suptitle)
+
+        for i, (arr, mask, ax) in enumerate(zip(arr_list, mask_list, axes.flatten())):
+            slice_idx = slices[f'Slice {i}']
+            arr_rgb = cv2.cvtColor(arr[slice_idx, :, :], cv2.COLOR_GRAY2RGB)
+            contours, _ = cv2.findContours(mask[slice_idx, :, :], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            arr_with_contours = cv2.drawContours(arr_rgb, contours, -1, (0, 255, 0), thickness)
+            
+            ax.imshow(arr_with_contours)
+            ax.axis('off')
+            ax.set_title(titles[i] if titles else f'Image {i}')
+
+        plt.show()
+
+    interact(update_slices, **sliders)
+
+def plot_mris_w_feat(feat_of_interest, use_three=True, orientation='IAL', modality=None):
+    """
+    orientation can be one of: IAL (axial), ASL (coronal), ILS (saggital)
+    modality can be one of: T1, FLAIR, DWI, ADC
+    """
+    feat_info = feat_of_interest.split('-')
+    if modality is None: 
+        modality = feat_info[0]
+        fi = modality
+    else:
+        fi = feat_info[0]
+    roi = feat_info[1]
+    pyrad_name = feat_info[2]
+    sorted_idxs = X[feat_of_interest].argsort()
+    subject_by_feat = subject_ids[X[feat_of_interest].iloc[sorted_idxs].index.to_list()]
+    feat_vals = X[feat_of_interest].iloc[sorted_idxs]
+
+    # get top three, bottom three and middle three subjects and feat_vals
+    top_three = subject_by_feat[-3:]
+    top_three_vals = feat_vals[-3:]
+    bottom_three = subject_by_feat[:3]
+    bottom_three_vals = feat_vals[:3]
+    middle_three = subject_by_feat[len(subject_by_feat)//2-1:len(subject_by_feat)//2+2]
+    middle_three_vals = feat_vals[len(subject_by_feat)//2-1:len(subject_by_feat)//2+2]
+
+    subject_nums = bottom_three.to_list() + middle_three.to_list() + top_three.to_list()
+    subject_vals = bottom_three_vals.to_list() + middle_three_vals.to_list() + top_three_vals.to_list()
+    if use_three:
+        subject_nums = [subject_nums[0], subject_nums[len(subject_nums)//2], subject_nums[-1]]
+        subject_vals = [subject_vals[0], subject_vals[len(subject_vals)//2], subject_vals[-1]]
+    
+    masks_of_int = [get_seg_for_subject(sub_no, int(roi), orientation=orientation) for sub_no in subject_nums]
+    scans_of_int = [get_mri_for_subject(sub_no, modality, orientation=orientation)[0] for sub_no in subject_nums]
+    titles = [f'Subject {sub_no}: {round(val, 3)}' for sub_no, val in zip(subject_nums, subject_vals)]
+    plot_mris(scans_of_int, masks_of_int, titles=titles, suptitle=f'{fi}_{pyrad_name}, {modality} {roi_key[roi]}')
+
 # %%
-roi_key = {
-    '1': 'enhancing', 
-    '2': 'other', 
-    '3': 'necrotic',
-    '4': 'edema',
-    '5': 'susceptibility', 
-    '6': 'restricted diffusion', 
-    '22': 'whole tumor',
-    '13': 'enhancing + necrotic',
-    '15': 'enhancing + susceptibility',
-    '156': 'enhancing + susceptibility + restricted diffusion'
-}
-orientation = 'IAL'
-mask_of_interest = get_seg_for_subject(subject_nums[0], int(roi), orientation=orientation)
-scan_of_interest, scan_name = get_mri_for_subject(subject_nums[0], modality, orientation=orientation)
-
-explore_3D_array_with_mask_contour(scan_of_interest, mask_of_interest, title = f'Subject {subject_nums[0]}, {pyrad_name}={round(subject_vals[0], 3)}, {modality} {roi_key[roi]}')
-
+# IAL = axial
+# ASL = coronal
+for feat_of_interest in highlight_names[:5]:
+    try:
+        plot_mris_w_feat(feat_of_interest, orientation='IAL', modality='T1')
+    except Exception as e:
+        print(e)
 # %%
