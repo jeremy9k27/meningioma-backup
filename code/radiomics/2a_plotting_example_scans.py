@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import joblib
 from ants import image_read
 import cv2
+import warnings
 
 setup()
 
@@ -32,7 +33,6 @@ plot_data_split(y, task)
 X = X.drop(columns=['Subject Number', task])
 feat_names = X.columns
 
-# %%
 def get_nonzero_feats(exp):
     feat_dict = {}
     if exp.n_classes > 2:
@@ -57,7 +57,7 @@ def get_nonzero_feats(exp):
 
     return feat_dict
 
-exp = joblib.load(f'data/lto_fine_lambdas_5-1-24/{task}/exp.pkl')
+exp = joblib.load(f'results/lto_fine_lambdas_5-1-24/{task}/exp.pkl')
 feats_dict = get_nonzero_feats(exp)
 c_coefs = feats_dict['Hypermetabolic']
 highlight_names = c_coefs[c_coefs['Cum Var Exp'] <= 0.99].index.to_list()
@@ -67,7 +67,6 @@ X_sm['label'] = y
 
 plot_corr_matrix(X_sm, outcome=task)
 
-# %%
 roi_key = {
     '1': 'enhancing', 
     '2': 'other', 
@@ -123,7 +122,7 @@ def get_seg_for_subject(sub_no, roi, orientation='IAL'):
             if 5 in seg_labels:
                 seg_labels.append(156)
 
-    if len(seg_labels) > 1: seg_labels.append(22) # Add the whole tumor mask label
+    seg_labels.append(22) # Add the whole tumor mask label
     
     # Create list of masks, one for each present segmentation label
     mask_arrays = []
@@ -160,7 +159,14 @@ def get_seg_for_subject(sub_no, roi, orientation='IAL'):
                 mask = mask.astype(int) * lab
         mask_arrays.append(mask)
     
-    roi_idx = np.where(np.array(seg_labels) == roi)[0][0]
+    roi_idx_search = np.where(np.array(seg_labels) == roi)[0]
+
+    if len(roi_idx_search) == 0:
+        roi_idx = -1
+        warnings.warn(f'No segmentation found for seg label {roi_key[str(roi)]} in subject {sub_no}, using {roi_key[str(seg_labels[-1])]} mask instead')
+    else: 
+        roi_idx = roi_idx_search[0]
+
     mask_arr = mask_arrays[roi_idx]
 
     return mask_arr
@@ -277,8 +283,8 @@ def plot_mris_w_feat(feat_of_interest, use_three=True, orientation='IAL', modali
 # IAL = axial
 # ASL = coronal
 for feat_of_interest in highlight_names[:5]:
-    try:
-        plot_mris_w_feat(feat_of_interest, orientation='IAL', modality='T1')
-    except Exception as e:
-        print(e)
+    plot_mris_w_feat(feat_of_interest, orientation='IAL', modality='T1')
+
+# %%
+plot_mris_w_feat('DWI-6-firstorder_Minimum', orientation='IAL', modality='T1')
 # %%
