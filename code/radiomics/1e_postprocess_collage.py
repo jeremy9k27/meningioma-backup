@@ -11,6 +11,8 @@ from tqdm import tqdm
 import pandas as pd
 from scipy.stats import skew, kurtosis, entropy
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import warnings
+warnings.filterwarnings("ignore")
 
 setup()
 
@@ -112,19 +114,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-# %%
-# import os
-# import sys
-# parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-# if parent_dir not in sys.path:
-#     sys.path.append(parent_dir)
-
-# from preprocessing.utils import setup
-# import pandas as pd
-
-# setup()
-
-# df = pd.read_csv('data/collage_sparse/windowsize-9_binsize-64_summary.csv')
-
-# %%
