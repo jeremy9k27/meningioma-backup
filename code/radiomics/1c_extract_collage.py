@@ -35,13 +35,13 @@ setup()
 MRI_DIR = 'data/preprocessed_mri_scans/7_COMPLETED_PREPROCESSED'
 SEGS_DIR = 'data/segmentations/'
 SEGS_PATHS = [f for f in os.listdir(SEGS_DIR) if f.startswith('Segmentation')]
-OUTPUT_DIR = 'data/collage_sparse'
+OUTPUT_DIR = 'data/collage_sparse_small_windows'
 LOG_FILE = f'{OUTPUT_DIR}/log.txt'
 MODALITIES = ['AX_3D_T1_POST', 'AX_ADC', 'SAG_3D_FLAIR']
 
 # Collage hyperparameters to search thru
-HARALICK_WINDOW_SIZES = [9, 11] # 3, 5, 7, 9, 11
-BIN_SIZES = [64, 30] # 10, 15, 20, 25, 30, 64 ??
+HARALICK_WINDOW_SIZES = [3, 5] # 3, 5, 7, 9, 11
+BIN_SIZES = [32, 64] # 10, 15, 20, 25, 30, 64 ??
 
 # %%
 if not os.path.exists(OUTPUT_DIR): os.makedirs(OUTPUT_DIR)
@@ -244,8 +244,8 @@ def main():
     logging.info(bar)
 
     collage_setting_no = 1
-    for window_size in HARALICK_WINDOW_SIZES:
-        for bin_size in BIN_SIZES:
+    for bin_size in BIN_SIZES:
+        for window_size in HARALICK_WINDOW_SIZES:
             logging.info(f'\nBeginning Collage feature extraction with setting {collage_setting_no}/{total_collage_settings}: using window size {window_size} and bin size {bin_size}')
             begin_time = time.time()
             start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
