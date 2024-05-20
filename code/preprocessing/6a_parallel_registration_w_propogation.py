@@ -45,9 +45,9 @@ from tqdm import tqdm
 #-------------------------#
 setup()
 
-skullstrip_dir = 'data/preprocessing/output/4_SKULLSTRIPPED' # set this to None if you don't want to use skullstripped intermediary images for SWI and DWI scans
-data_dir = 'data/preprocessing/output/5b_ZSCORE_NORMALIZED'
-output_dir = 'data/preprocessing/output/6b_REGISTERED'
+skullstrip_dir = 'data/preprocessed_mri_scans/4_SKULLSTRIPPED' # set this to None if you don't want to use skullstripped intermediary images for SWI and DWI scans
+data_dir = 'data/preprocessed_mri_scans/5b_ZSCORE_NORMALIZED'
+output_dir = 'data/preprocessed_mri_scans/6c_NONLIN_WARP_REGISTERED'
 log_dir = f'{output_dir}/logfiles'
 num_workers = 4
 
@@ -139,7 +139,7 @@ def register_subject(subject):
         dwi_intermediary_transform = None
 
         # This is the first step of registration: register a subject's AX 3D T1 POST image to the MNI template
-        type_of_transform = 'Affine'
+        type_of_transform = 'SyNRA'
         logging.info(f"\tPerforming {type_of_transform.lower()} registration to {mni_template_path.split('/')[-1]} for scan {intra_subject_template}")
         mni_transform = ants.registration(
             fixed=mni_template,
