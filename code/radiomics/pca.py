@@ -6,7 +6,7 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
-from preprocessing.utils import setup, lsdir, explore_3D_array_with_mask_contour, rescale_linear
+from preprocessing.utils import setup, lsdir, rescale_linear
 from utils import prep_data_for_pca, plot_data_split, plot_corr_matrix
 import numpy as np
 from sklearn.preprocessing import StandardScaler
@@ -19,20 +19,27 @@ import plotly.graph_objects as go
 from ipywidgets import interact, IntSlider
 from ants import image_read
 import cv2
+from LTOExperiment import LTOExperiment
+from LOOExperiment import LOOExperiment
 
 setup()
 
 # directory handling
-data_dir = 'data/pca_results/'
-task = 'MethylationSubgroup'
-output_dir = f'{data_dir}/{task}'
+data_dir = 'results/pca_results/'
+task = 'Chr22q'
+if task == 'MethylationSubgroup':
+    subtask = 'Merlin Intact'
+    output_dir = f'{data_dir}/{task}-{subtask}'
+else:
+    subtask = task
+    output_dir = f'{data_dir}/{task}'
 if not os.path.exists(output_dir): os.makedirs(output_dir)
 
 # Get data prepared
 X = prep_data_for_pca(outcome=task, scaler_obj=StandardScaler())
 subject_ids = X['Subject Number']
 y = X[task]
-plot_data_split(y, task)
+plot_data_split(y, task, output_file=f'{output_dir}/data_split.png')
 X = X.drop(columns=['Subject Number', task])
 feat_names = X.columns
 
@@ -42,8 +49,8 @@ principal_components = pca.fit_transform(X)
 pca_scores_df = pd.DataFrame(principal_components, columns=[f'PC{i+1}' for i in range(principal_components.shape[1])])
 pca_scores_df['Subject Number'] = subject_ids
 
-if not os.path.exists(f"data/pca_results/{task}/pca_scores.csv"): 
-    pca_scores_df.to_csv(f"data/pca_results/{task}/pca_scores.csv", index=False)
+if not os.path.exists(f"{output_dir}/pca_scores.csv"): 
+    pca_scores_df.to_csv(f"{output_dir}/pca_scores.csv", index=False)
 
 # %%
 # Proportion of Variance Explained
@@ -84,19 +91,19 @@ def get_nonzero_feats(exp):
 
     return feat_dict
 
-exp = joblib.load(f'data/lto_fine_lambdas_5-1-24/{task}/exp.pkl')
+exp = joblib.load(f'results/lto_fine_lambdas_5-1-24/{task}/exp.pkl')
 feats_dict = get_nonzero_feats(exp)
-c_coefs = feats_dict['Hypermetabolic']
+c_coefs = feats_dict[subtask]
 highlight_names = c_coefs[c_coefs['Cum Var Exp'] <= 0.99].index.to_list()
 
 X_sm = X[highlight_names]
 X_sm['label'] = y
 
-plot_corr_matrix(X_sm, outcome=task)
+plot_corr_matrix(X_sm, outcome=task, output_dir=output_dir)
 # %%
-exp = joblib.load(f'data/classic_loo_pca_regression_5-1-24/{task}/exp.pkl')
+exp = joblib.load(f'results/classic_loo_pca_regression_5-1-24/{task}/exp.pkl')
 feats_dict = get_nonzero_feats(exp)
-c_coefs = feats_dict['Hypermetabolic']
+c_coefs = feats_dict[subtask]
 pcs = c_coefs.index.to_list()[:6]
 
 # given list of strings, strip out the numbers
@@ -132,7 +139,7 @@ feature_colors, feature_color_map = map_categories_to_colors(feature_type)
 
 loadings = pca.components_.T
 
-def plot_loadings(highlight_names, n_row=1, n_col=5, PCs=None, ann=True, by_sign=True):
+def plot_loadings(highlight_names, n_row=1, n_col=5, PCs=None, ann=True, by_sign=True, output_dir=None):
     if PCs is None:
         PCs = np.arange(1, (n_row*n_col) + 1).astype(int)
     
@@ -162,11 +169,16 @@ def plot_loadings(highlight_names, n_row=1, n_col=5, PCs=None, ann=True, by_sign
             if ann: ax[i].annotate(name, (x_coords[pos], np.abs(loadings[sorted_indices[pos], PCs[i]-1])), textcoords="offset points", xytext=(0,10), ha='left')
 
     plt.tight_layout()
-    plt.show()
+    if output_dir is not None:
+        str_pcs = "-".join([str(pc) for pc in PCs])
+        plt.savefig(f'{output_dir}/loadings_pcs_{str_pcs}.png', bbox_inches='tight')
+    else:
+        plt.show()
+    plt.close()
 
-plot_loadings(highlight_names, 1, 2)
-plot_loadings(highlight_names, 2, 3)
-plot_loadings(highlight_names, 2, 3, PCs=pcs)
+plot_loadings(highlight_names, 1, 2, output_dir=output_dir)
+plot_loadings(highlight_names, 2, 3, output_dir=output_dir)
+plot_loadings(highlight_names, 2, 3, PCs=pcs, output_dir=output_dir)
 
 # %%
 # Map classes to colors
@@ -205,7 +217,10 @@ ax.set_ylabel('Principal Component 2')
 ax.set_zlabel('Principal Component 3')
 ax.set_title('3D PCA Plot (PC1, PC2, PC3) Colored by Class')
 ax.legend(title='Class')
-plt.show()
+plt.tight_layout()
+plt.savefig(f'{output_dir}/3d_pca_triplot.png', bbox_inches='tight')
+plt.close()
+# plt.show()
 
 # %%
 

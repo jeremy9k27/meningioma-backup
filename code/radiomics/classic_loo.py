@@ -15,8 +15,8 @@ import joblib
 
 setup()
 
-output_folder = 'data/classic_loo_pca_regression_5-1-24' # 'data/classic_loo_pca_regression_5-1-24' # 'data/classic_loo'
-lambdas = np.arange(0.2, 2.2, 0.2) # np.arange(0.2, 2.2, 0.2) # coarse = np.arange(1.0, 9.0, 1.0) # fine = np.arange(0.2, 2.2, 0.2) # np.arange(0.06, 0.16, 0.02)
+output_folder = 'results/LOO_combined-pruned_fine_5-16-24'
+lambdas = np.arange(0.9, 1.35, 0.05) # coarse = np.arange(0.1, 11, 1) # fine = np.arange(0.2, 2.2, 0.2) # np.arange(0.06, 0.16, 0.01)
 
 tasks = ['Chr22q'] # ['Chr22q', 'MethylationSubgroup', 'Chr1p']
 
@@ -31,7 +31,7 @@ for task in tasks:
         lambdas=lambdas,
         output_dir=output_folder,
         use_smote=True,
-        feat_file=f"data/pca_results/{task}/pca_scores.csv"
+        feat_file="data/combined_feats/5-15-24_radiomics_pruned-collage_features.csv" # f"data/collage_sparse/windowsize-9_binsize-64_summary_22nansfilled_pruned.csv" # "data/combined_feats/5-15-24_radiomics_pruned-collage_features.csv"
     )
 
     if task == 'MethylationSubgroup':

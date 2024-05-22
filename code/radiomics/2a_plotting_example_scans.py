@@ -17,13 +17,14 @@ import joblib
 from ants import image_read
 import cv2
 import warnings
+from tqdm import tqdm
 
 setup()
 
 # directory handling
-data_dir = 'results/plotted_scans_w_top_feats/'
+data_dir = 'results/ADC_scans_w_feats/'
 task = 'Chr22q' # 'Chr22q'
-subtask = 'Merlin Intact' # subtask isn't used when task != 'MethylationSubgroup'
+subtask = 'Merlin Intact' # subtask isn't used when task != 'MethylationSubgroup' # Merlin Intact, Immune Enriched, Hypermetabolic
 if task == 'MethylationSubgroup':
     output_dir = f'{data_dir}/{task}/{subtask}'
 else:
@@ -35,7 +36,7 @@ if not os.path.exists(output_dir): os.makedirs(output_dir)
 X = prep_data_for_pca(outcome=task, scaler_obj=StandardScaler())
 subject_ids = X['Subject Number']
 y = X[task]
-plot_data_split(y, task)
+# plot_data_split(y, task)
 X = X.drop(columns=['Subject Number', task])
 feat_names = X.columns
 
@@ -82,7 +83,7 @@ highlight_names = c_coefs[c_coefs['Cum Var Exp'] <= 0.99].index.to_list()
 X_sm = X[highlight_names]
 X_sm['label'] = y
 
-plot_corr_matrix(X_sm, outcome=task) # plots the correlation matrix of the nonzero features from the model
+# plot_corr_matrix(X_sm, outcome=task) # plots the correlation matrix of the nonzero features from the model
 
 y_preds = exp.final_model_dict['test_preds']
 
@@ -100,10 +101,10 @@ def plot_heatmap(data, task):
 
 named_coef_df = c_coefs[c_coefs['Cum Var Exp'] < 0.99].drop(columns=['Absolute Sum', 'Prop Var Exp', 'Cum Var Exp', 'Avg'])
 named_coef_df.columns = subject_ids
-if task == 'MethylationSubgroup':
-    plot_heatmap(named_coef_df, subtask)
-else:
-    plot_heatmap(named_coef_df, task)
+# if task == 'MethylationSubgroup':
+#     plot_heatmap(named_coef_df, subtask)
+# else:
+#     plot_heatmap(named_coef_df, task)
 
 # %%
 def construct_model_formula(rounded_coef_series, intercept_value):
@@ -140,6 +141,7 @@ roi_key = {
     '22': 'whole tumor',
     '13': 'enhancing + necrotic',
     '15': 'enhancing + susceptibility',
+    '16': 'enhancing + restricted diffusion',
     '156': 'enhancing + susceptibility + restricted diffusion'
 }
 
@@ -388,10 +390,10 @@ def plot_mris_w_feat(feat_of_interest, feat_num=0, which_three=0, orientation='I
 # %%
 # IAL = axial
 # ASL = coronal
-for i, feat_of_interest in enumerate(highlight_names[:5]):
-    plot_mris_w_feat(feat_of_interest, feat_num=i, orientation='IAL', modality='T1', )
-    plot_mris_w_feat(feat_of_interest, feat_num=i, which_three=1, orientation='IAL', modality='T1')
-    plot_mris_w_feat(feat_of_interest, feat_num=i, which_three=2, orientation='IAL', modality='T1')
+# for i, feat_of_interest in enumerate(highlight_names[:5]):
+#     plot_mris_w_feat(feat_of_interest, feat_num=i, orientation='IAL', modality='T1', )
+#     plot_mris_w_feat(feat_of_interest, feat_num=i, which_three=1, orientation='IAL', modality='T1')
+#     plot_mris_w_feat(feat_of_interest, feat_num=i, which_three=2, orientation='IAL', modality='T1')
 
 # %%
 def sub_specific_plot_mri(sub_no):
@@ -400,7 +402,7 @@ def sub_specific_plot_mri(sub_no):
     nonzero_feats = model[model != 0].index.to_list()
     sub_feats = X_sm[nonzero_feats].iloc[sub_idx]
     mf = construct_model_formula(model, round(intercept[sub_idx], 2))
-    mri, _ = get_mri_for_subject(sub_no, 'T1')
+    mri, _ = get_mri_for_subject(sub_no, 'ADC')
     mri = rescale_linear(mri, 0, 1)
     seg, _ = get_seg_for_subject(sub_no, roi=22)
     seg = rescale_linear(seg, 0, 1).astype(np.uint8)
@@ -427,5 +429,8 @@ def sub_specific_plot_mri(sub_no):
     plt.savefig(f'{output_dir}/subject_specific_images/sub-{sub_no}.png', bbox_inches='tight')
     plt.close()
 
-for subject in subject_ids:
-    sub_specific_plot_mri(subject)
+for subject in tqdm(subject_ids, total = len(subject_ids)):
+    try:
+        sub_specific_plot_mri(subject)
+    except Exception as e:
+        print(f'Error for subject {subject}: {e}')

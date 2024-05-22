@@ -15,7 +15,7 @@ import joblib
 
 setup()
 
-output_folder = 'data/lto_fine_lambdas_5-1-24'
+output_folder = 'results/lto_collage-only_fine_5-15-24'
 # lambdas = np.arange(0.01, 1.29, 0.01) # 128 different lambdas
 lambdas = np.arange(0.06, 0.16, 0.02) # np.arange(0.05, 0.23, 0.01) # 20 different lambdas
 tasks = ['MethylationSubgroup', 'Chr22q', 'Chr1p']
