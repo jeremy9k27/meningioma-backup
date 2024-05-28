@@ -34,8 +34,8 @@ import os
 
 setup()
 
-data_dir = 'data/preprocessing/output/6b_REGISTERED'
-output_dir = 'data/preprocessing/output/7_COMPLETED_PREPROCESSED'
+data_dir = 'data/preprocessed_mri_scans/6c_NONLIN_WARP_REGISTERED'
+output_dir = 'data/preprocessed_mri_scans/7c_NONLIN_WARP_COMPLETED_PREPROCESSED'
 
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)

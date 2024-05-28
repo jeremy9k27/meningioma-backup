@@ -38,12 +38,12 @@ setup()
 #### 1. VIEW REGISTRATION ####
 #----------------------------#
 def view_registration(subject='111', orientation='IAL'):
-    before_dir = f'data/preprocessing/output/5_ZSCORE_NORMALIZED/{subject}/{subject}_Brainlab/'
-    after_dir = f'data/preprocessing/output/6_REGISTERED/{subject}/{subject}_Brainlab/'
-    skullstrip_dir = f'data/preprocessing/output/4_SKULLSTRIPPED/{subject}/{subject}_Brainlab/'
+    before_dir = f'data/preprocessed_mri_scans/5b_ZSCORE_NORMALIZED/{subject}/{subject}_Brainlab/'
+    after_dir = f'data/preprocessed_mri_scans/6c_NONLIN_WARP_REGISTERED/{subject}/{subject}_Brainlab/'
+    skullstrip_dir = f'data/preprocessed_mri_scans/4_SKULLSTRIPPED/{subject}/{subject}_Brainlab/'
 
     suffix = 'Affine_registration_to_AX_3D_T1_POST'
-    mni_template_path = 'data/preprocessing/output/6_REGISTERED/mni_icbm152_nlin_sym_09a/mni_icbm152_t1_tal_nlin_sym_09a.nii'
+    mni_template_path = 'data/preprocessed_mri_scans/6c_NONLIN_WARP_REGISTERED/mni_icbm152_nlin_sym_09a/mni_icbm152_t1_tal_nlin_sym_09a.nii'
     mni_template = ants.image_read(mni_template_path, reorient=orientation)
 
     scans = lsdir(before_dir)
