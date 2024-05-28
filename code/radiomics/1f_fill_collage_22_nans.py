@@ -12,7 +12,10 @@ import re
 
 setup()
 
-df = pd.read_csv('data/collage_sparse/windowsize-9_binsize-64_summary.csv')
+dd = 'data/collage_sparse_small_windows'
+win_size = 3
+bin_size = 32
+df = pd.read_csv(f'{dd}/windowsize-{win_size}_binsize-{bin_size}_summary.csv')
 
 # %%
 cols_to_fix = [c for c in df.columns if '-22-' in c]
@@ -42,11 +45,11 @@ print("Percent missingness BEFORE fix for cols to fix: ", np.sum(np.sum(np.isnan
 print("Percent missingness AFTER fix for cols to fix: ", np.sum(np.sum(np.isnan(df2[cols_to_fix]))) / (df2.shape[0] * len(cols_to_fix)))
 
 # %%
-df2.to_csv('data/collage_sparse/windowsize-9_binsize-64_summary_22nansfilled.csv', index=False)
+df2.to_csv(f'{dd}/windowsize-{win_size}_binsize-{bin_size}_summary_22nansfilled.csv', index=False)
 
 # %%
-radiomics_df = pd.read_csv('data/radiomics/features6/features_wide.csv')
-collage_df = pd.read_csv('data/collage_sparse/windowsize-9_binsize-64_summary_22nansfilled.csv')
+radiomics_df = pd.read_csv('data/radiomics/features8_smoothed/features_wide.csv')
+collage_df = pd.read_csv(f'{dd}/windowsize-{win_size}_binsize-{bin_size}_summary_22nansfilled.csv')
 
 print('Radiomics shape: ', radiomics_df.shape)
 print('Collage shape: ', collage_df.shape)
@@ -57,5 +60,5 @@ print('Combined shape: ', combined_df.shape)
 
 if not os.path.exists('data/combined_feats'): os.makedirs('data/combined_feats')
 
-combined_df.to_csv('data/combined_feats/5-15-24_radiomics_collage_features.csv', index=False)
+combined_df.to_csv(f'data/combined_feats/radiomics8-smoothed_collage-ws-{win_size}-bs-{bin_size}_features.csv', index=False)
 # %%

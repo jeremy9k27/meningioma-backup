@@ -33,7 +33,7 @@ import collageradiomics
 # Set up the directories and paths, define global constants
 setup()
 MRI_DIR = 'data/preprocessed_mri_scans/7_COMPLETED_PREPROCESSED'
-SEGS_DIR = 'data/segmentations/'
+SEGS_DIR = 'data/smoother_segmentations/'
 SEGS_PATHS = [f for f in os.listdir(SEGS_DIR) if f.startswith('Segmentation')]
 OUTPUT_DIR = 'data/collage_sparse_small_windows'
 LOG_FILE = f'{OUTPUT_DIR}/log.txt'
@@ -224,7 +224,7 @@ def run_collage(sub_no, window_size, bin_size, c_output_dir):
 # %%
 def main():
     # Get the list of subjects we want to extract features for (those with segmentations and biomarker data available)
-    _, _, labels_df = count_subjects(verbose=False, drop_by_outcome=False)
+    _, _, labels_df = count_subjects(verbose=False, drop_by_outcome=False, segs_dir=SEGS_DIR)
     subjects = labels_df['Subject Number'].to_list()
     n = len(subjects)
     

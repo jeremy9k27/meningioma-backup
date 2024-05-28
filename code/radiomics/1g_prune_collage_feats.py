@@ -7,18 +7,20 @@ if parent_dir not in sys.path:
 
 from preprocessing.utils import setup
 import pandas as pd
-import numpy as np
-import re
 
 setup()
 
-radiomics_df = pd.read_csv('data/radiomics/features6/features_wide.csv')
-collage_df = pd.read_csv('data/collage_sparse/windowsize-9_binsize-64_summary_22nansfilled.csv')
+dd = 'data/collage_sparse_small_windows'
+win_size = 3
+bin_size = 32
+
+radiomics_df = pd.read_csv('data/radiomics/features8_smoothed/features_wide.csv')
+collage_df = pd.read_csv(f'{dd}/windowsize-{win_size}_binsize-{bin_size}_summary_22nansfilled.csv')
 
 important_feats = [f for f in collage_df.columns if 'skewness' in f or 'kurtosis' in f or 'entropy' in f]
 
 pruned_collage_df = collage_df[['Subject Number'] + important_feats]
-pruned_collage_df.to_csv('data/collage_sparse/windowsize-9_binsize-64_summary_22nansfilled_pruned.csv', index=False)
+pruned_collage_df.to_csv(f'{dd}/windowsize-{win_size}_binsize-{bin_size}_summary_22nansfilled_pruned.csv', index=False)
 # %%
 
 print('Radiomics shape: ', radiomics_df.shape)
@@ -30,5 +32,5 @@ print('Combined shape: ', combined_df.shape)
 
 if not os.path.exists('data/combined_feats'): os.makedirs('data/combined_feats')
 
-combined_df.to_csv('data/combined_feats/5-15-24_radiomics_pruned-collage_features.csv', index=False)
+combined_df.to_csv(f'data/combined_feats/radiomics8-smoothed_pruned-collage-ws-{win_size}-bs-{bin_size}_features.csv', index=False)
 # %%
