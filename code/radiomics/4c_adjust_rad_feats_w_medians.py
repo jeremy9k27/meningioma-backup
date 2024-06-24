@@ -42,3 +42,10 @@ result = radiomics.copy()  # Initialize result DataFrame
 result[mask] = (radiomics[mask] - medians[mask]) / mads[mask]
 
 # %%
+output_dir = 'data/4c_radiomics_adjusted_w_medians_and_mads'
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
+result['Subject Number'] = rad_subs
+result = result[['Subject Number'] + result.columns[:-1].tolist()]
+result.to_csv(os.path.join(output_dir, 'features_wide.csv'), index=False)
