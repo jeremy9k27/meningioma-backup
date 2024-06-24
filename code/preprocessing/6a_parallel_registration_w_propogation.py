@@ -45,9 +45,9 @@ from tqdm import tqdm
 #-------------------------#
 setup()
 
-skullstrip_dir = 'data/preprocessed_mri_scans/4_SKULLSTRIPPED' # set this to None if you don't want to use skullstripped intermediary images for SWI and DWI scans
-data_dir = 'data/preprocessed_mri_scans/5b_ZSCORE_NORMALIZED'
-output_dir = 'data/preprocessed_mri_scans/6c_NONLIN_WARP_REGISTERED'
+skullstrip_dir = 'data/preprocessing/output/4_SKULLSTRIPPED' # set this to None if you don't want to use skullstripped intermediary images for SWI and DWI scans
+data_dir = 'data/preprocessing/output/5b_ZSCORE_NORMALIZED'
+output_dir = 'data/preprocessing/output/6c_NONLIN_WARP_REGISTERED'
 log_dir = f'{output_dir}/logfiles'
 num_workers = 4
 
@@ -69,7 +69,9 @@ def save_transforms(tx, output_path):
     try:
         for i, t in enumerate(tx):
             suffix = t.split('.')[-1]
+            logging.info(f"\t\t\tAttempting to save transform {i}/{len(tx)} as {output_path}_transform_tx_{i}.{suffix}...")
             shutil.copy(t, f'{output_path}_transform_tx_{i}.{suffix}')
+            logging.info(f"\t\t\tSuccess!")
     except Exception as e:
         logging.info(f"\t\t\tError in saving transforms: {e}")
 
@@ -179,7 +181,7 @@ def register_subject(subject):
                     if scan_type == swi_intermediary: swi_intermediary_transform = intra_subject_transform['fwdtransforms']
                     if scan_type == dwi_intermediary: dwi_intermediary_transform = intra_subject_transform['fwdtransforms']
 
-                    logging.info(f"\t\t\tPropogating the affine registration from {intra_subject_template_scan_path} -> {mni_template_path.split('/')[-1]} onto {scan}")
+                    logging.info(f"\t\t\tPropogating the registration from {intra_subject_template_scan_path} -> {mni_template_path.split('/')[-1]} onto {scan}")
                     propogated_mni_transform = ants.apply_transforms(
                         fixed=mni_template,
                         moving=intra_subject_transform['warpedmovout'],
