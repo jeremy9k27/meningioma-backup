@@ -11,8 +11,8 @@ import pandas as pd
 setup()
 
 dd = 'data/collage_sparse_small_windows'
-win_size = 3
-bin_size = 32
+win_size = 5
+bin_size = 64
 
 radiomics_df = pd.read_csv('data/radiomics/features8_smoothed/features_wide.csv')
 collage_df = pd.read_csv(f'{dd}/windowsize-{win_size}_binsize-{bin_size}_summary_22nansfilled.csv')

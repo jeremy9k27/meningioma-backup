@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore")
 setup()
 
 num_workers = 16
-data_dir = 'data/collage_sparse_small_windows/windowsize-5_binsize-32'
+data_dir = 'data/collage_sparse_small_windows/windowsize-5_binsize-64'
 collage_feat_names = [
     'AngularSecondMoment', 'Contrast', 'Correlation',
     'SumOfSquareVariance', 'SumAverage', 'SumVariance',
