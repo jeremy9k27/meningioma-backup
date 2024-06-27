@@ -55,7 +55,7 @@ def process_file(filename):
 
     return unique_warnings
 
-filename = "data/preprocessing/output/2_NIFTI/log.txt"
+filename = "data/round2_preprocessing/output/2_NIFTI/log.txt"
 warnings_found = process_file(filename)
 for item in warnings_found:
     print(item)
