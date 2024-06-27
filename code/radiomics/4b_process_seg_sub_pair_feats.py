@@ -27,7 +27,7 @@ medians = groups.median().reset_index().pivot(
     )
 
 # Apply the median_abs_deviation function to calculate MAD for each group
-mads = groups.apply(lambda g: g.iloc[:, 4:].apply(median_abs_deviation)).reset_index().pivot(
+mads = groups.apply(lambda g: g.apply(median_abs_deviation)).reset_index().pivot(
         index='Subject Providing Segmentation', 
         columns=['Scan Sequence', 'Segmentation Label']
     )
