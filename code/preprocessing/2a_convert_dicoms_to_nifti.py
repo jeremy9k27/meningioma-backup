@@ -38,10 +38,10 @@ from utils import lsdir, setup
 #---------------------------#
 setup()
 
-data_dir = 'data/preprocessing/NURIPS_downloads/Meningiomas_handchecked'
+data_dir = 'data/round2_preprocessing/NURIPS_downloads/Meningiomas_R2'
 dcm = 'resources/DICOM'
-output_dir = 'data/preprocessing/output/2_NIFTI'
-log_file = 'data/preprocessing/output/2_NIFTI/log.txt'
+output_dir = 'data/round2_preprocessing/output/2_NIFTI'
+log_file = 'data/round2_preprocessing/output/2_NIFTI/log.txt'
 dcm2niix = './code/preprocessing/dcm2niix'
 
 if not os.path.exists(output_dir): os.makedirs(output_dir)
@@ -57,8 +57,8 @@ print(f"Logging output to {log_file}")
 
 for subject in tqdm(lsdir(data_dir), desc="Subjects"):
     for session in tqdm(lsdir(f'{data_dir}/{subject}'), desc="Sessions", leave=False):
-        for scan in tqdm(lsdir(f'{data_dir}/{subject}/{session}/ready_for_preprocessing'), desc="Scans", leave=False):
-            cur_input_dir = f'{data_dir}/{subject}/{session}/ready_for_preprocessing/{scan}/{dcm}'
+        for scan in tqdm(lsdir(f'{data_dir}/{subject}/{session}/scans'), desc="Scans", leave=False):
+            cur_input_dir = f'{data_dir}/{subject}/{session}/scans/{scan}/{dcm}'
             cur_output_dir = f'{output_dir}/{subject}/{session}/{scan}'
             if not os.path.exists(cur_output_dir): 
                 os.makedirs(cur_output_dir)
