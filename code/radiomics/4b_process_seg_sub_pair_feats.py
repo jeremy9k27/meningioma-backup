@@ -17,11 +17,12 @@ def median_abs_deviation(series):
 
 df = pd.read_csv('data/4a_radiomics_for_all_seg_sub_pairs/features.csv')
 
-normalize_across = 'Subject Providing Segmentation' # or 'Subject Providing Scan'
+normalize_across = 'Subject Providing Scan' # 'Subject Providing [Segmentation, Scan]'
 to_drop = 'Subject Providing Scan'
 if normalize_across == 'Subject Providing Scan':
     to_drop = 'Subject Providing Segmentation'
 
+across_tag = normalize_across.split()[-1]
 # %%
 groups = df.drop(columns=[to_drop]).groupby([normalize_across, 'Segmentation Label', 'Scan Sequence'])
 
@@ -45,6 +46,6 @@ mads.columns = [f"Mod-{modality}-SegLab-{segmentation_label}-Feat-{feature}" for
 output_dir = 'data/4b_processed_seg_sub_pair_feats'
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
-medians.to_csv(f'{output_dir}/medians.csv')
-mads.to_csv(f'{output_dir}/mads.csv')
+medians.to_csv(f'{output_dir}/medians_normalizedAcross{across_tag}.csv')
+mads.to_csv(f'{output_dir}/mads_normalizedAcross{across_tag}.csv')
 # %%
