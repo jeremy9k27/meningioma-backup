@@ -13,12 +13,19 @@ from preprocessing.utils import setup
 
 setup()
 
-medians = pd.read_csv('data/4b_processed_seg_sub_pair_feats/medians.csv')
-mads = pd.read_csv('data/4b_processed_seg_sub_pair_feats/mads.csv')
+normalize_across = 'Subject Providing Scan' # 'Subject Providing [Segmentation, Scan]'
+to_drop = 'Subject Providing Scan'
+if normalize_across == 'Subject Providing Scan':
+    to_drop = 'Subject Providing Segmentation'
+
+across_tag = normalize_across.split()[-1]
+
+medians = pd.read_csv(f'data/4b_processed_seg_sub_pair_feats/medians_normalizedAcross{across_tag}.csv')
+mads = pd.read_csv(f'data/4b_processed_seg_sub_pair_feats/mads_normalizedAcross{across_tag}.csv')
 radiomics = pd.read_csv('data/radiomics/features8_smoothed/features_wide.csv')
 # %%
-medians.rename(columns={'Subject Providing Segmentation': 'Subject Number'}, inplace=True)
-mads.rename(columns={'Subject Providing Segmentation': 'Subject Number'}, inplace=True)
+medians.rename(columns={normalize_across: 'Subject Number'}, inplace=True)
+mads.rename(columns={normalize_across: 'Subject Number'}, inplace=True)
 # %%
 medians = medians[radiomics.columns]
 mads = mads[radiomics.columns]
@@ -48,4 +55,5 @@ if not os.path.exists(output_dir):
 
 result['Subject Number'] = rad_subs
 result = result[['Subject Number'] + result.columns[:-1].tolist()]
-result.to_csv(os.path.join(output_dir, 'features_wide.csv'), index=False)
+result.to_csv(os.path.join(output_dir, f'features_wide_normalizedAcross{across_tag}.csv'), index=False)
+# %%
