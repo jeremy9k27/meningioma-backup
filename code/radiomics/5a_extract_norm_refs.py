@@ -218,12 +218,13 @@ def extract_features(sub_no):
     # Get the masks and segmentation labels for the subject
     masks, _ = get_segs_for_subject(sub_no)
     whole_mask = masks[-1]
+    whole_mask = (whole_mask == 0).astype(int)
 
     scan_paths, scan_sequences = get_scans_for_subject(sub_no)
 
     for scan, sequence in tqdm(zip(scan_paths, scan_sequences), total=len(scan_paths), dynamic_ncols=True, position=1, desc=f'Scans from subject {sub_no}', leave=False, colour='blue'):
         try:
-            result = EXTRACTOR.execute(scan, whole_mask, label=0)
+            result = EXTRACTOR.execute(scan, whole_mask, label=1)
             result_trimmed = result.copy()
             for k in result.keys():
                 if not isinstance(result[k], np.ndarray):
