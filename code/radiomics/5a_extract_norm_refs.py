@@ -218,7 +218,7 @@ def extract_features(sub_no):
     # Get the masks and segmentation labels for the subject
     masks, _ = get_segs_for_subject(sub_no)
     whole_mask = masks[-1]
-    whole_mask = (whole_mask == 0).astype(int)
+    whole_mask = (whole_mask == 0) * 1
 
     scan_paths, scan_sequences = get_scans_for_subject(sub_no)
 
