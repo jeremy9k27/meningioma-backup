@@ -15,7 +15,7 @@ setup()
 
 # %%
 # Read in normalization reference data
-df = pd.read_csv('data/5a_radiomic_normalization_references/features.csv')
+df = pd.read_csv('data/5a_radiomic_normalization_references_constrainedByBrainMask/features.csv')
 # Drop columns with only one unique value (no need to normalize using these references)
 df_sm = df.drop(columns=df.columns[np.where(df.nunique() == 1)])
 # Read in the original radiomics features
@@ -64,5 +64,5 @@ divided_df = pyrad_df_wide.div(ref_df_wide)
 
 # %% Save the divided data to a CSV file
 if not os.path.exists('data/5b_processed_normalized_features'): os.makedirs('data/5b_processed_normalized_features')
-divided_df.to_csv('data/5b_processed_normalized_features/features8_smoothed_wide.csv')
+divided_df.to_csv('data/5b_processed_normalized_features/features8_smoothed_constrainedByBrainMask_wide.csv')
 # %%
