@@ -219,7 +219,8 @@ def extract_features(sub_no):
     masks, _ = get_segs_for_subject(sub_no)
     whole_mask = masks[-1]
     anti_mask = (whole_mask == 0) * 1
-
+    brain_mask = sitk.GetArrayFromImage(sitk.ReadImage('data/preprocessing/output/6c_NONLIN_WARP_REGISTERED/mni_icbm152_nlin_sym_09a/mni_icbm152_t1_tal_nlin_sym_09a_mask.nii'))
+    anti_mask = anti_mask * brain_mask
     scan_paths, scan_sequences = get_scans_for_subject(sub_no)
 
     for scan, sequence in tqdm(zip(scan_paths, scan_sequences), total=len(scan_paths), dynamic_ncols=True, position=1, desc=f'Scans from subject {sub_no}', leave=False, colour='blue'):
