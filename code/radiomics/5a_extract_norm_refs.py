@@ -216,9 +216,8 @@ def extract_features(sub_no):
     logging.info(f"\nExtracting features from all subjects using subject {sub_no}'s segmentation file...")
     
     # Get the masks and segmentation labels for the subject
-    masks, annotation_labels = get_segs_for_subject(sub_no)
-    whole_mask_idx = np.where(annotation_labels == 22)
-    whole_mask = masks[whole_mask_idx[0][0]]
+    masks, _ = get_segs_for_subject(sub_no)
+    whole_mask = masks[-1]
 
     scan_paths, scan_sequences = get_scans_for_subject(sub_no)
 
