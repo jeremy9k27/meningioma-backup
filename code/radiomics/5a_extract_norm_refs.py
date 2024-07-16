@@ -231,7 +231,11 @@ def extract_features(sub_no):
 
     # Now restrict the anti-mask to only be within the brain region
     anti_mask_constrained = sitk.GetArrayFromImage(anti_mask) * sitk.GetArrayFromImage(brain_mask)
-
+    anti_mask_constrained = sitk.GetImageFromArray(anti_mask_constrained)
+    anti_mask_constrained.SetOrigin(anti_mask.GetOrigin())
+    anti_mask_constrained.SetSpacing(anti_mask.GetSpacing())
+    anti_mask_constrained.SetDirection(anti_mask.GetDirection())
+    
     # Get the MRI scans and their sequences for the subject
     scan_paths, scan_sequences = get_scans_for_subject(sub_no)
 
