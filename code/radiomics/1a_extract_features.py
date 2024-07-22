@@ -37,14 +37,14 @@ import SimpleITK as sitk
 
 # Set up the directories and paths, define global constants
 setup()
-MRI_DIR = 'data/preprocessed_mri_scans/7_COMPLETED_PREPROCESSED'
-SEGS_DIR = 'data/smoother_segmentations/'
+MRI_DIR = 'data/preprocessing/output/7b_COMPLETED_PREPROCESSED'
+SEGS_DIR = 'data/ComparisonSegs_NotVirginia/'
 SEGS_PATHS = [f for f in os.listdir(SEGS_DIR) if f.startswith('Segmentation')]
-OUTPUT_DIR = 'data/radiomics/features8_smoothed'
+OUTPUT_DIR = 'data/radiomics/comparison_NOTvirginia'
+if not os.path.exists(OUTPUT_DIR): os.makedirs(OUTPUT_DIR)
 OUTPUT_FILE = f'{OUTPUT_DIR}/features.csv'
 LOG_FILE = f'{OUTPUT_DIR}/log.txt'
 MODALITIES = ['AX_3D_T1_POST', 'AX_DIFFUSION', 'AX_ADC', 'SAG_3D_FLAIR']
-if not os.path.exists(OUTPUT_DIR): os.makedirs(OUTPUT_DIR)
 
 def assert_images_geometry(sitk_images, paths):
     """
@@ -205,7 +205,7 @@ def extract_features(s, e):
 
 def main():
     # Get the list of subjects we want to extract features for (those with segmentations and biomarker data available)
-    _, _, labels_df = count_subjects(verbose=False, drop_by_outcome=False, segs_dir=SEGS_DIR)
+    _, _, labels_df = count_subjects(mri_dir=MRI_DIR, segs_dir=SEGS_DIR, verbose=False, drop_by_outcome=False)
     subjects = labels_df['Subject Number'].to_list()
     n = len(subjects)
 
