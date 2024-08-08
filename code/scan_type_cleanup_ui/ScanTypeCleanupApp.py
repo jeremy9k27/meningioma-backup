@@ -4,6 +4,7 @@ from tkinter import messagebox
 from PIL import Image, ImageTk
 import pandas as pd
 from datetime import datetime
+from math import isnan
 
 class ScanTypeCleanupApp:
     def __init__(self, root, data, output_dir):
@@ -52,7 +53,6 @@ class ScanTypeCleanupApp:
         self.response_var = tk.StringVar(root)
         self.response_menu = ttk.OptionMenu(root, self.response_var, self.options[0], *self.options, command=self.check_other)
         self.response_entry = tk.Entry(root, width=50)
-        self.response_entry.bind("<Return>", self.save_and_next)
         self.continue_button = ttk.Button(root, text="Continue", command=self.save_and_next)
 
     def start_app(self, event=None):
@@ -76,18 +76,21 @@ class ScanTypeCleanupApp:
     def load_image_text(self):
         if self.current_index < len(self.data):
             item = self.data[self.current_index]
-            if item['image_path'] is not None:
-                img = Image.open(item['image_path'])
-                photo = ImageTk.PhotoImage(img)
 
-                self.image_label.config(image=photo)
-                self.image_label.image = photo
+            if isinstance(item['image_path'], str):
+                img = Image.open(item['image_path'])
+            else:
+                img = Image.open('data/no-image-available.png')
+            
+            photo = ImageTk.PhotoImage(img)
+
+            self.image_label.config(image=photo)
+            self.image_label.image = photo
 
             self.text_label.config(text=item['text'])
 
             self.response_var.set(self.options[0])
             self.response_entry.pack_forget()
-            self.root.bind("<Return>", self.save_and_next)  # Bind Enter key to save_and_next
             self.update_progress()
         else:
             self.finish()
@@ -95,18 +98,18 @@ class ScanTypeCleanupApp:
     def check_other(self, value):
         if value == "OTHER":
             self.response_entry.pack(anchor='w')
-            self.root.bind("<Return>", self.save_and_next)  # Bind Enter key to save_and_next when OTHER is selected
         else:
             self.response_entry.pack_forget()
 
-    def save_and_next(self, event=None):
+    def save_and_next(self):
+        # Explicitly get the latest selection before saving
         if self.response_var.get() == "OTHER":
             user_input = self.response_entry.get()
         else:
             user_input = self.response_var.get()
 
-        if not user_input:
-            messagebox.showwarning("Input Error", "Please enter a response to proceed.")
+        if not user_input or user_input == '----':
+            messagebox.showwarning("Input Error", "Please select a valid response to proceed.")
             return
 
         item = self.data[self.current_index]
