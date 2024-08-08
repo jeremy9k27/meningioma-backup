@@ -202,6 +202,8 @@ undetectable_scans = 0
 confusing_scans = 0
 two_detected = 0
 three_detected = 0
+confusing_names = 0
+conf_names_list = []
 for subject in lsdir(data_dir):
     for session in lsdir(f'{data_dir}/{subject}'):
         for scan in lsdir(f'{data_dir}/{subject}/{session}'):
@@ -224,6 +226,9 @@ for subject in lsdir(data_dir):
                     two_detected += 1
                 if len(detected) == 3:
                     three_detected += 1
+                if clean_scan_name(scanl) is None:
+                    confusing_names += 1
+                    conf_names_list.append(scanl)
 # %%
 print(pd.Series(all_detected).value_counts())
 print(f'Undetectable scans: {undetectable_scans}')
