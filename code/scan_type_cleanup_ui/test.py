@@ -96,7 +96,12 @@ def automated_first_pass():
     return needs_handcheck
 
 if __name__ == "__main__":
-    data_needing_handcheck = automated_first_pass()
+    if os.path.exists(f'{output_dir}/needs_handcheck.csv'):
+        print('Loading data needing handcheck from existing csv...')
+        data_needing_handcheck = pd.read_csv(f'{output_dir}/needs_handcheck.csv').to_dict('records')
+    else:
+        print('Running automated first pass...')
+        data_needing_handcheck = automated_first_pass()
     root = tk.Tk()
     app = ScanTypeCleanupApp(root, data_needing_handcheck, output_dir)
     root.mainloop()

@@ -38,7 +38,11 @@ class ScanTypeCleanupApp:
 
         # Create UI elements for the main app, but keep them hidden initially
         self.content_frame = tk.Frame(root)
-        
+
+        # Progress label
+        self.progress_label = tk.Label(root, text="", font=("Helvetica", 12))
+        self.progress_label.pack(pady=10)
+
         self.image_label = tk.Label(self.content_frame)
         self.image_label.pack(side=tk.LEFT)
 
@@ -46,7 +50,7 @@ class ScanTypeCleanupApp:
         self.text_label.pack(side=tk.LEFT, padx=(10, 0))  # Add padding to the right of the image
 
         self.response_var = tk.StringVar(root)
-        self.response_menu = ttk.OptionMenu(root, self.response_var, *self.options, command=self.check_other)
+        self.response_menu = ttk.OptionMenu(root, self.response_var, self.options[0], *self.options, command=self.check_other)
         self.response_entry = tk.Entry(root, width=50)
         self.response_entry.bind("<Return>", self.save_and_next)
         self.continue_button = ttk.Button(root, text="Continue", command=self.save_and_next)
@@ -66,14 +70,14 @@ class ScanTypeCleanupApp:
         self.response_menu.pack(anchor='w')
         self.continue_button.pack(anchor='w')
 
+        self.update_progress()
         self.load_image_text()
 
     def load_image_text(self):
         if self.current_index < len(self.data):
             item = self.data[self.current_index]
-            if item['image_path'] is not None: # LGC TODO DELETE THIS IF STATEMENT & FIX INDENTATION IF IT MESSES UP PROGRAM
+            if item['image_path'] is not None:
                 img = Image.open(item['image_path'])
-                # img = img.resize((400, 300), Image.ANTIALIAS) # LGC TODO UNCOMMENT HERE IF IMAGES LOOK FUNNY!
                 photo = ImageTk.PhotoImage(img)
 
                 self.image_label.config(image=photo)
@@ -84,6 +88,7 @@ class ScanTypeCleanupApp:
             self.response_var.set(self.options[0])
             self.response_entry.pack_forget()
             self.root.bind("<Return>", self.save_and_next)  # Bind Enter key to save_and_next
+            self.update_progress()
         else:
             self.finish()
 
@@ -108,6 +113,11 @@ class ScanTypeCleanupApp:
         self.responses.append({'image_id': item['id'], 'text': user_input})
         self.current_index += 1
         self.load_image_text()
+
+    def update_progress(self):
+        total = len(self.data)
+        current = self.current_index + 1
+        self.progress_label.config(text=f"Scan {current}/{total}")
 
     def finish(self):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
