@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan Type Cleanup App</title>
+    <style>
+        .container {
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            margin: 20px;
+        }
+        .image {
+            max-width: 400px;
+            margin-right: 20px;
+        }
+        .text {
+            max-width: 400px;
+            flex-grow: 1;
+        }
+    </style>
+</head>
+<body>
+    <h2>Scan {{ index + 1 }}/{{ total_scans }}</h2>
+    <div class="container">
+        <div class="image">
+            <img src="{{ image_url }}" alt="Scan Image" style="width: 100%;">
+        </div>
+        <div class="text">
+            <p>{{ text|safe }}</p>
+            <form method="POST">
+                <label for="response">Select Scan Type:</label>
+                <select id="response" name="response" onchange="toggleOther()">
+                    {% for option in options %}
+                        <option value="{{ option }}">{{ option }}</option>
+                    {% endfor %}
+                </select>
+                <div id="other_response_div" style="display: none;">
+                    <label for="other_response">Specify Other:</label>
+                    <input type="text" id="other_response" name="other_response">
+                </div>
+                <button type="submit">Continue</button>
+            </form>
+        </div>
+    </div>
+    <script>
+        function toggleOther() {
+            var response = document.getElementById('response').value;
+            var otherDiv = document.getElementById('other_response_div');
+            if (response === 'OTHER') {
+                otherDiv.style.display = 'block';
+            } else {
+                otherDiv.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

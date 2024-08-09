@@ -4,7 +4,6 @@ from tkinter import messagebox
 from PIL import Image, ImageTk
 import pandas as pd
 from datetime import datetime
-from math import isnan
 
 class ScanTypeCleanupApp:
     def __init__(self, root, data, output_dir):
