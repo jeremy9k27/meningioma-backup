@@ -24,7 +24,7 @@ class ScanTypeCleanupApp:
         self.root.title("Image Text Input")
 
         # Create UI elements for the landing page
-        self.instructions_label = tk.Label(root, text="Welcome to the Image Text Input App!\n\nPlease enter your name below and click 'Start' to begin.\nYou will be shown an image and a description, and you need to select your response from the drop-down menu.", wraplength=400)
+        self.instructions_label = tk.Label(root, text="Welcome to the Scan Type Cleanup App v 0.1!\n\nPlease enter your name below and click 'Start' to begin.\nYour name will be used to name the resulting output csv file, along with a datetime stamp.\nCurrently, your progress through the scans is not saved until you complete the application.\nYou will be shown the middle slice of an MRI scan in the axial view, along with some metadata corresponding to the scan, and asked to select the appropriate scan type from the drop-down menu.\nThe 'OTHER' option on the menu will offer you a text box to type the proper scan name in by hand, should the drop-down menu lack the desired name.\nPlease report any bugs, comments, questions, or feedback on the GitHub link below:\nhttps://github.com/lawrence-chillrud/meningioma/issues", wraplength=400)
         self.instructions_label.pack(pady=20)
 
         self.name_label = tk.Label(root, text="Your Name:")
