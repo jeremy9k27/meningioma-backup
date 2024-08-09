@@ -67,6 +67,27 @@ def scan(username, index):
 
     return render_template('scan.html', username=username, image_url=image_url, text=format_text_for_html(item['text']), options=['----', 'AX_2D_T2', 'AX_3D_T1_POST', 'AX_3D_T1_PRE', 'AX_ADC', 'AX_DIFFUSION', 'AX_PD', 'AX_SWI', 'AX_STIR', 'SAG_3D_FLAIR', 'SAG_3D_T2', 'DISCARD', 'OTHER'], index=index, total_scans=total_scans)
 
+@app.route('/save_progress/<username>/<int:index>', methods=['POST'])
+def save_progress(username, index):
+    global responses
+
+    # Save responses up to the current index
+    progress_data = responses[:index]
+
+    if not progress_data:
+        flash("No progress to save.")
+        return redirect(url_for('scan', username=username, index=index))
+
+    # Create a filename with a timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{output_dir}/handchecked_{username}_progress_{timestamp}.csv"
+    
+    # Save the progress to a CSV file
+    pd.DataFrame(progress_data).to_csv(filename, index=False)
+    
+    flash(f"Progress saved successfully to {filename}.")
+    return redirect(url_for('scan', username=username, index=index))
+
 @app.route('/finish/<username>')
 def finish(username):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

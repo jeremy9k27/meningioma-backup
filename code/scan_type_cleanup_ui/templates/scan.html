@@ -19,6 +19,9 @@
             max-width: 400px;
             flex-grow: 1;
         }
+        .buttons {
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
@@ -40,7 +43,10 @@
                     <label for="other_response">Specify Other:</label>
                     <input type="text" id="other_response" name="other_response">
                 </div>
-                <button type="submit">Continue</button>
+                <div class="buttons">
+                    <button type="submit">Continue</button>
+                    <button type="submit" name="save_progress" value="save" formaction="{{ url_for('save_progress', username=username, index=index) }}">Save Progress</button>
+                </div>
             </form>
         </div>
     </div>
