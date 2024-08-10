@@ -16,6 +16,9 @@ if not os.path.exists(output_dir): os.makedirs(output_dir)
 
 responses = []
 
+pass_key_file = f'{input_dir}/pass_key.txt'
+correct_pass_key = open(pass_key_file, 'r').read().strip()
+
 def format_text_for_html(text):
     # Replace tabs with non-breaking spaces (4 spaces per tab)
     formatted_text = text.replace('\t', '&nbsp;' * 4)
@@ -34,9 +37,16 @@ def start():
     global output_dir
 
     username = request.form['username'].strip()
+    pass_key = request.form['pass_key'].strip()
     if not username:
         flash('Please enter your name to proceed.')
         return redirect(url_for('index'))
+    if not pass_key:
+        flash('Please enter the pass key to proceed.')
+        return redirect(url_for('index'))
+    
+    if pass_key != correct_pass_key:
+        return render_template('index.html', error='Incorrect pass key. Please try again.')
 
     output_dir = f'{input_dir}/responses/{username}'
     if not os.path.exists(output_dir): os.makedirs(output_dir)

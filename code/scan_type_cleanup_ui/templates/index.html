@@ -8,9 +8,17 @@
 <body>
     <h1>Welcome to the Scan Type Cleanup App</h1>
     <form method="POST" action="{{ url_for('start') }}">
-        <label for="username">Your Name:</label>
-        <input type="text" id="username" name="username">
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required>
+        <br><br>
+        <label for="pass_key">Passkey:</label>
+        <input type="password" id="pass_key" name="pass_key" required>
+        <br><br>
         <button type="submit">Start</button>
     </form>
+
+    {% if error %}
+        <p style="color: red;">{{ error }}</p>
+    {% endif %}
 </body>
 </html>
