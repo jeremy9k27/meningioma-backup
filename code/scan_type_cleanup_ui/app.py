@@ -1,5 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, get_flashed_messages
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 import os
+import random
 import pandas as pd
 from datetime import datetime
 
@@ -7,6 +8,8 @@ app = Flask(__name__)
 app.secret_key = 'your_secret_key'
 
 # Load data
+index_images_dir = '/home/lawrence/Meningioma/code/scan_type_cleanup_ui/static/index_images'
+url_for_index_image = None
 input_dir = '/home/lawrence/Meningioma/data/3_SCAN_TYPE_CLEANUP'
 data_file = f'{input_dir}/needs_handcheck.csv'
 data_needing_handcheck = pd.read_csv(data_file)
@@ -28,7 +31,11 @@ def format_text_for_html(text):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    global url_for_index_image
+    index_image_filepaths = [f for f in os.listdir(index_images_dir) if f.endswith('.jpg')]
+    index_image_filepath = random.choice(index_image_filepaths)
+    url_for_index_image = url_for('static', filename=f'index_images/{index_image_filepath}')
+    return render_template('index.html', image_url=url_for_index_image)
 
 @app.route('/start', methods=['POST'])
 def start():
@@ -46,7 +53,7 @@ def start():
         return redirect(url_for('index'))
     
     if pass_key != correct_pass_key:
-        return render_template('index.html', error='Incorrect pass key. Please try again.')
+        return render_template('index.html', image_url=url_for_index_image, error='Incorrect pass key. Please try again.')
 
     output_dir = f'{input_dir}/responses/{username}'
     if not os.path.exists(output_dir): os.makedirs(output_dir)

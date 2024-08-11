@@ -4,21 +4,48 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scan Type Cleanup App</title>
+    <style>
+        /* Style the container div */
+        .container {
+            width: 55%;
+            margin: 0 auto; /* Center the container on the page */
+        }
+        /* Ensure the image maintains its aspect ratio within the container */
+        .container img {
+            width: 100%; /* Set to 100% of the container's width */
+            height: auto;
+        }
+        /* Optional: Ensure text aligns nicely within the container */
+        .container p, .container h1, .container h3, .container h4, .container form {
+            margin: 0;
+            padding: 10px 0;
+        }
+    </style>
 </head>
 <body>
-    <h1>Welcome to the Scan Type Cleanup App</h1>
-    <form method="POST" action="{{ url_for('start') }}">
-        <label for="username">Username:</label>
-        <input type="text" id="username" name="username" required>
-        <br><br>
-        <label for="pass_key">Passkey:</label>
-        <input type="password" id="pass_key" name="pass_key" required>
-        <br><br>
-        <button type="submit">Start</button>
-    </form>
+    <!-- Container div to control the width of the content -->
+    <div class="container">
+        <h1>Meningioma Project: Scan Type Cleanup App</h1>
+        <img src="{{ image_url }}" title="Photo by Lawrence Chillrud" alt="Photo by Lawrence Chillrud">
+        <h3>Version 1.0.0</h3>
+        <h4>Author: Lawrence Chillrud</h4>
+        <p>Please enter your name and the pass key provided to you in the fields below. 
+            The pass key is case-sensitive, so make sure to enter it exactly as given. 
+            If you do not have a pass key, please contact the administrator.</p>
+        
+        <form method="POST" action="{{ url_for('start') }}">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required>
+            <br><br>
+            <label for="pass_key">Passkey:</label>
+            <input type="password" id="pass_key" name="pass_key" required>
+            <br><br>
+            <button type="submit">Start</button>
+        </form>
 
-    {% if error %}
-        <p style="color: red;">{{ error }}</p>
-    {% endif %}
+        {% if error %}
+            <p style="color: red;">{{ error }}</p>
+        {% endif %}
+    </div>
 </body>
 </html>
