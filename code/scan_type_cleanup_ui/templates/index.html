@@ -7,7 +7,7 @@
     <style>
         /* Style the container div */
         .container {
-            width: 55%;
+            width: 60%;
             margin: 0 auto; /* Center the container on the page */
         }
         /* Ensure the image maintains its aspect ratio within the container */
@@ -25,13 +25,39 @@
 <body>
     <!-- Container div to control the width of the content -->
     <div class="container">
-        <h1>Meningioma Project: Scan Type Cleanup App</h1>
-        <img src="{{ image_url }}" title="Photo by Lawrence Chillrud" alt="Photo by Lawrence Chillrud">
-        <h3>Version 1.0.0</h3>
-        <h4>Author: Lawrence Chillrud</h4>
-        <p>Please enter your name and the pass key provided to you in the fields below. 
-            The pass key is case-sensitive, so make sure to enter it exactly as given. 
-            If you do not have a pass key, please contact the administrator.</p>
+        <h2>Meningioma Project: Scan Type Cleanup App</h2>
+        <img src="{{ image_url }}" title="Hudson Valley Summer Poplar by Lawrence Chillrud" alt="Photo by Lawrence Chillrud">
+        <h4>Version 1.0.0</h4>
+        <p>Welcome to the Meningioma Project's Scan Type Cleanup App!</p>
+        <h3>Instructions</h3>
+        <p>The app aims to provide a simple GUI to facilitate the hand-labelling of MRI scans 
+            in the Meningioma dataset. Once signing in, you will be presented with a series of MRI scans, 
+            including the middle slice of the scan's axial plane (when available), and accompanying metadata about the scan. 
+            You will then be asked to select the appropriate scan type for the given MRI from a drop-down menu. A note on special options:</p>
+        <ul>
+            <li>The 'OTHER' option offers a text box to type the proper scan type in by hand, 
+                should the drop-down menu lack an appropriate option. Please only use this sparingly, 
+                and try to be as consistent as possible in your naming schema.</li>
+            <li>The 'DISCARD' option indicates the MRI scan is not useful for the project,
+                and therefore does not require preprocessing.</li>
+        </ul>
+        <p>You can take a break and save your progress at any point by clicking on the 'Save & Exit' button. 
+            Your progress will be saved on Calliope. To resume where you left off, simply 
+            sign back into the app using the same (case-sensitive) Username as before.</p>
+        <p>Your completed work will be stored as a CSV file on Lawrence Chillrud's Calliope account.</p>
+        <h3>Important notes</h3>
+        <ul>
+            <li>As of v.1.0.0, only one person can sign in and work on the Scan Type Cleanup App at a time.</li>
+            <li>Please enter your FirstNameLastName as your Username when signing in, 
+                to ensure multiple users do not inadvertently adopt the same Username; as of v.1.0.0, multiple 
+                people assuming the same Username breaks the backend recording of submissions.</li>
+            <li>You must click the 'Save & Exit' button or finish labelling all scans before exiting the application webpage.</li>
+            <li>If you have any bugs, feature requests, or questions, please <a href="https://github.com/lawrence-chillrud/meningioma/issues" target="_blank">open an issue here</a>.</li>
+        </ul>
+        <h3>Sign In</h3>
+        <p>Please enter your FirstNameLastName and the passkey provided to you in the fields below. 
+            The passkey is case-sensitive, so make sure to enter it exactly as given. 
+            If you do not have a passkey, please contact <a href="mailto:chili@u.northwestern.edu">Lawrence Chillrud</a>.</p>
         
         <form method="POST" action="{{ url_for('start') }}">
             <label for="username">Username:</label>
