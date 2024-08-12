@@ -7,31 +7,42 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 from preprocessing.utils import setup
-from LOOExperiment import LOOExperiment
+from NonlinearLOOExp import NonlinearLOOExp
 import time
 from datetime import datetime
 import numpy as np
 import joblib
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF, Matern, RationalQuadratic, DotProduct
 
 setup()
 
-output_folder = 'results/LOO_self-pyrad-normalized_RoB_radiomics_7-16-24_coarse'
-lambdas = np.arange(0.1, 15, 1) # coarse = np.arange(0.1, 15, 1) # fine = np.arange(0.06, 0.16, 0.01)
+output_folder = 'results/Nonlin_LOO_GP_radiomics8_7-28-24'
+model = GaussianProcessClassifier
+fixed_params = {
+    'n_restarts_optimizer': 10,
+    'max_iter_predict': 500
+}
+param_to_sweep = 'kernel'
+sweep_values = [1.0 * RBF(1.0), 1.0 * Matern(nu=0.5), 1.0 * Matern(nu=1.5), 1.0 * Matern(nu=2.5), 1.0 * RationalQuadratic(), 1.0 * DotProduct()]
 
 tasks = ['Chr22q', 'MethylationSubgroup', 'Chr1p'] # ['Chr22q', 'MethylationSubgroup', 'Chr1p']
 
 begin_time = time.time()
 start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-print(f'\n\nStarted classic_loo.py at: {start_time}\n\n')
+print(f'\n\nStarted nonlin_loo.py at: {start_time}\n\n')
 
 for task in tasks:
     print(f'\nStarting {task}...')
-    exp = LOOExperiment(
+    exp = NonlinearLOOExp(
+        model=model,
+        fixed_model_params=fixed_params,
+        param_to_sweep=param_to_sweep,
+        sweep_values=sweep_values,
         prediction_task=task, 
-        lambdas=lambdas,
         output_dir=output_folder,
         use_smote=True,
-        feat_file="data/5b_processed_normalized_features/features8_smoothed_constrainedByBrainMask_wide.csv" # f"data/collage_sparse/windowsize-9_binsize-64_summary_22nansfilled_pruned.csv" # "data/combined_feats/5-15-24_radiomics_pruned-collage_features.csv"
+        feat_file="data/radiomics/features8_smoothed/features_wide.csv" # f"data/collage_sparse/windowsize-9_binsize-64_summary_22nansfilled_pruned.csv" # "data/combined_feats/5-15-24_radiomics_pruned-collage_features.csv"
     )
 
     if task == 'MethylationSubgroup':
