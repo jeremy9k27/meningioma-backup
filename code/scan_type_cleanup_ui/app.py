@@ -8,9 +8,9 @@ app = Flask(__name__)
 app.secret_key = 'your_secret_key'
 
 # Load data
-index_images_dir = '/home/lawrence/Meningioma/code/scan_type_cleanup_ui/static/index_images'
+index_images_dir = '/home/lgc2035/Meningioma/code/scan_type_cleanup_ui/static/index_images'
 url_for_index_image = None
-input_dir = '/home/lawrence/Meningioma/data/3_SCAN_TYPE_CLEANUP'
+input_dir = '/home/lgc2035/Meningioma/data/3_SCAN_TYPE_CLEANUP'
 data_file = f'{input_dir}/needs_handcheck.csv'
 data_needing_handcheck = pd.read_csv(data_file)
 
@@ -106,7 +106,7 @@ def scan(username, index):
     image_url = url_for('static', filename=f'thumbnails/{image_path}')
     total_scans = len(data_needing_handcheck)
 
-    return render_template('scan.html', username=username, image_url=image_url, text=format_text_for_html(item['text']), options=['----', 'AX_2D_T2', 'AX_3D_T1_POST', 'AX_3D_T1_PRE', 'AX_ADC', 'AX_DIFFUSION', 'AX_PD', 'AX_SWI', 'AX_STIR', 'SAG_3D_FLAIR', 'SAG_3D_T2', 'DISCARD', 'OTHER'], index=index, total_scans=total_scans)
+    return render_template('scan.html', username=username, image_url=image_url, text=format_text_for_html(item['text']), options=['----', 'AX_2D_T1_POST', 'AX_2D_T1_PRE', 'AX_2D_T2', 'AX_3D_T1_POST', 'AX_3D_T1_PRE', 'AX_ADC', 'AX_DIFFUSION', 'AX_GRE', 'AX_PD', 'AX_STIR', 'AX_SWI', 'COR_FS_T1_POST', 'SAG_3D_FLAIR', 'SAG_3D_T2', 'DISCARD', 'OTHER'], index=index, total_scans=total_scans)
 
 @app.route('/save_progress/<username>/<int:index>', methods=['POST'])
 def save_progress(username, index):
@@ -129,11 +129,19 @@ def save_progress(username, index):
 
 @app.route('/finish/<username>')
 def finish(username):
+    global responses
+    global data_needing_handcheck
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{output_dir}/handchecked_{username}_{timestamp}.csv"
     pd.DataFrame(responses).to_csv(filename, index=False)
     flash(f"Thank you for your responses! They have been saved to {filename}.")
-    return render_template('finish.html')
+
+    data_needing_handcheck = pd.read_csv(data_file)
+    responses = []
+    session.clear()
+
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=8636, debug=False)
