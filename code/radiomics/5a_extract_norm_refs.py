@@ -13,7 +13,7 @@
 # This script generates the following file(s) as outputs:
 #   * data/5a_radiomic_normalization_references/*
 
-# Package imports
+# %% Package imports
 import sys
 import os
 
@@ -38,7 +38,7 @@ setup()
 MRI_DIR = 'data/preprocessing/output/7c_NONLIN_WARP_COMPLETED_PREPROCESSED'
 SEGS_DIR = 'data/8_mni_registered_mixed_segs/'
 SEGS_PATHS = [f for f in os.listdir(SEGS_DIR) if f.startswith('Segmentation')]
-OUTPUT_DIR = 'data/5a_radiomic_normalization_references'
+OUTPUT_DIR = 'data/5a_radiomic_normalization_references_constrainedByBrainMask'
 OUTPUT_FILE = f'{OUTPUT_DIR}/features.csv'
 LOG_FILE = f'{OUTPUT_DIR}/log.txt'
 DESIRED_SEQUENCES = ['AX_3D_T1_POST', 'AX_DIFFUSION', 'AX_ADC', 'SAG_3D_FLAIR']
@@ -217,14 +217,31 @@ def extract_features(sub_no):
     
     # Get the masks and segmentation labels for the subject
     masks, _ = get_segs_for_subject(sub_no)
-    whole_mask = masks[-1]
-    anti_mask = (whole_mask == 0) * 1
+    whole_mask = masks[-1] # Choose whole mask w/label 22 since we know it's the last one in the list
+    anti_mask = (whole_mask == 0) * 1 # Get the complement of the whole mask
 
+    # Get the MNI template's brain mask and resample it to the same geometry as the anti-mask
+    brain_mask = sitk.ReadImage('data/preprocessing/output/6c_NONLIN_WARP_REGISTERED/mni_icbm152_nlin_sym_09a/mni_icbm152_t1_tal_nlin_sym_09a_mask.nii')
+    resample = sitk.ResampleImageFilter()
+    resample.SetReferenceImage(anti_mask)
+    resample.SetOutputDirection(anti_mask.GetDirection())
+    resample.SetOutputOrigin(anti_mask.GetOrigin())
+    resample.SetOutputSpacing(anti_mask.GetSpacing())
+    brain_mask = resample.Execute(brain_mask)
+
+    # Now restrict the anti-mask to only be within the brain region
+    anti_mask_constrained = sitk.GetArrayFromImage(anti_mask) * sitk.GetArrayFromImage(brain_mask)
+    anti_mask_constrained = sitk.GetImageFromArray(anti_mask_constrained)
+    anti_mask_constrained.SetOrigin(anti_mask.GetOrigin())
+    anti_mask_constrained.SetSpacing(anti_mask.GetSpacing())
+    anti_mask_constrained.SetDirection(anti_mask.GetDirection())
+    
+    # Get the MRI scans and their sequences for the subject
     scan_paths, scan_sequences = get_scans_for_subject(sub_no)
 
     for scan, sequence in tqdm(zip(scan_paths, scan_sequences), total=len(scan_paths), dynamic_ncols=True, position=1, desc=f'Scans from subject {sub_no}', leave=False, colour='blue'):
         try:
-            result = EXTRACTOR.execute(scan, anti_mask, label=1)
+            result = EXTRACTOR.execute(scan, anti_mask_constrained, label=1)
             result_trimmed = result.copy()
             for k in result.keys():
                 if not isinstance(result[k], np.ndarray):

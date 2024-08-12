@@ -38,6 +38,29 @@ data_dir = 'data/round2_preprocessing/output/2_NIFTI'
 #---------------------------#
 #### 2. HELPER FUNCTIONS ####
 #---------------------------#
+def clean_scan_name(scan_name):
+    scan_name = scan_name.lower()
+    if 'b1000' in scan_name or 'b=1000' in scan_name or 'tracew' in scan_name:
+        return 'B1000'
+    if 'adc' in scan_name:
+        return 'ADC'
+    if 'flair' in scan_name:
+        return 'FLAIR'
+    if 'diffusion' in scan_name:
+        return 'DWI'
+    if 'mprage' in scan_name:
+        if 'post' in scan_name:
+            return 'T1 POST'
+        if 'pre' in scan_name:
+            return 'T1 PRE'
+        return 'T1'
+    if 't2' in scan_name:
+        return 'T2'
+    if 't1' in scan_name:
+        return 'T1'
+
+    return None
+
 def classify_scan_type(json_file):
     # Read in metadata
     with open(json_file, 'r') as file:
@@ -59,9 +82,20 @@ def classify_scan_type(json_file):
     if 'InversionTime' in data.keys():
         it = data['InversionTime']
 
+    slice_thickness = None
+    if 'SliceThickness' in data.keys():
+        slice_thickness = data['SliceThickness']
+    
     # Find out which scan types the json's metadata matches
     detected = []
     
+    # Slice thickness
+    if slice_thickness is not None:
+        if slice_thickness <= 1:
+            detected.append('3D')
+        else:
+            detected.append('2D')
+
     # All four criterion needed
     if rt is not None and et is not None and fa is not None and it is not None:
         # NU MPRAGE WITHOUT CONTRAST (RT: 2.1, ET: 0.00246, IT: 1, FA: 12) 
@@ -161,20 +195,28 @@ def classify_scan_type(json_file):
         if rt > 3 and et > 0.080 and it >= 1.7 and it <= 2.2:
             detected.append('FLAIR')
         
-    return detected, et, rt, it, fa
+    return detected, et, rt, it, fa, slice_thickness
 # %%
 all_detected = []
 undetectable_scans = 0
 confusing_scans = 0
 two_detected = 0
 three_detected = 0
+confusing_names = 0
+conf_names_list = []
 for subject in lsdir(data_dir):
     for session in lsdir(f'{data_dir}/{subject}'):
         for scan in lsdir(f'{data_dir}/{subject}/{session}'):
             jsons = [f for f in os.listdir(f'{data_dir}/{subject}/{session}/{scan}') if f.endswith('.json')]
+            scanl = scan.lower()
+            if 'scout' in scanl or 'b500' in scanl or 'b=500' in scanl or 'b0' in scanl or 'b=0' in scanl or '_nd' in scanl or '_mpr_' in scanl or scanl.endswith('mpr') or 'reformat' in scanl or 'localizer' in scanl or 'loc' in scanl:
+                continue
+            if 'mpr' in scanl and 'mprage' not in scanl:
+                continue
+            
             for j in jsons:
-                detected, et, rt, it, fa = classify_scan_type(f'{data_dir}/{subject}/{session}/{scan}/{j}')
-                print(f'Subject: {subject}, Session: {session.split("_")[-1]}, Scan: {(j.split(".json")[0]).split(f"{session}_")[-1]}, Matched: {detected}, ET: {et}, RT: {rt}, IT: {it}, FA: {fa}')
+                detected, et, rt, it, fa, st = classify_scan_type(f'{data_dir}/{subject}/{session}/{scan}/{j}')
+                print(f'Sub: {subject}, Sess: {session.split("_")[-1]}, Scan: {(j.split(".json")[0]).split(f"{session}_")[-1]}\n\tMatched via name: {clean_scan_name(scanl)}\n\tMatched via json file: {detected}, ET: {et}, RT: {rt}, IT: {it}, FA: {fa}, ST: {st}\n')
                 all_detected.extend(detected)
                 if len(detected) == 0:
                     undetectable_scans += 1
@@ -184,6 +226,9 @@ for subject in lsdir(data_dir):
                     two_detected += 1
                 if len(detected) == 3:
                     three_detected += 1
+                if clean_scan_name(scanl) is None:
+                    confusing_names += 1
+                    conf_names_list.append(scanl)
 # %%
 print(pd.Series(all_detected).value_counts())
 print(f'Undetectable scans: {undetectable_scans}')

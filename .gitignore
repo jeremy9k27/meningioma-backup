@@ -238,3 +238,6 @@ code/preprocessing/dcm2niix
 
 # symbolic links
 MeningiomaNotes.md
+
+# Scan Type Cleanup app
+code/scan_type_cleanup_ui/static
