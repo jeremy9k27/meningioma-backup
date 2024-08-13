@@ -4,7 +4,7 @@ import warnings
 
 def discard_scan(scan_name):
     scanl = scan_name.lower()
-    if 'scout' in scanl or 'b500' in scanl or 'b=500' in scanl or 'b_500' in scanl or 'b_0' in scanl or 'b0' in scanl or 'b=0' in scanl or '_nd' in scanl or '_mpr_' in scanl or scanl.endswith('mpr') or 'reformat' in scanl or 'localizer' in scanl or 'loc' in scanl:
+    if 'scout' in scanl or 'b500' in scanl or 'b=500' in scanl or 'b_500' in scanl or 'b_0' in scanl or 'b0' in scanl or 'b=0' in scanl or '_nd' in scanl or '_mpr_' in scanl or scanl.endswith('mpr') or 'reformat' in scanl or 'rfmt' in scanl or 'localizer' in scanl or 'loc' in scanl:
         return True
     if 'mpr' in scanl and 'mprage' not in scanl:
         return True
@@ -43,51 +43,59 @@ def clean_scan_name(scan_name, json_file):
             dimensionality = '2D'
     
     # get the scan type from the scan name
-    clean_name = None
+    clean_names = []
     if 'b1000' in scan_name or 'b=1000' in scan_name or 'b_1000' in scan_name or 'tracew' in scan_name:
-        clean_name = 'DIFFUSION'
-    elif 'adc' in scan_name:
-        clean_name = 'ADC'
-    elif 'flair' in scan_name:
-        clean_name = 'FLAIR'
-    elif 'diffusion' in scan_name:
-        clean_name = 'DIFFUSION'
-    elif 'mprage' in scan_name:
+        clean_names.append('DIFFUSION')
+    if 'diffusion' in scan_name and 'adc' not in scan_name:
+        clean_names.append('DIFFUSION')
+    if 'adc' in scan_name:
+        clean_names.append('ADC')
+    if 'flair' in scan_name:
+        clean_names.append('FLAIR')
+    if 'mprage' in scan_name:
         if 'post' in scan_name:
-            clean_name = 'T1_POST'
+            clean_names.append('T1_POST')
         elif 'pre' in scan_name:
-            clean_name = 'T1_PRE'
+            clean_names.append('T1_PRE')
         else:
-            clean_name = 'T1'
-    elif 't2' in scan_name:
-        clean_name = 'T2'
-    elif 't1' in scan_name:
-        clean_name = 'T1'
-    elif 'swi' in scan_name:
-        clean_name = 'SWI'
-    elif 'stir' in scan_name:
-        clean_name = 'STIR'
-    elif 'gre' in scan_name:
-        clean_name = 'GRE'
-    else:
-        clean_name = None
-
+            clean_names.append('T1')
+    if 't2' in scan_name and 'gre' not in scan_name:
+        clean_names.append('T2')
+    if 't1' in scan_name and 'mprage' not in scan_name:
+        if 'post' in scan_name:
+            clean_names.append('T1_POST')
+        elif 'pre' in scan_name:
+            clean_names.append('T1_PRE')
+        else:
+            clean_names.append('T1')
+    if 'swi' in scan_name:
+        clean_names.append('SWI')
+    if 'stir' in scan_name:
+        clean_names.append('STIR')
+    if 'gre' in scan_name:
+        clean_names.append('GRE')
+    
+    clean_names = list(set(clean_names))
+    single_clean_name = None
+    if len(clean_names) == 1:
+        single_clean_name = clean_names[0]
+    
     # combine the direction, dimensionality, and scan type (as appropriate) and return
-    if clean_name is None:
+    if single_clean_name is None:
         return None
-    elif clean_name in ['ADC', 'DIFFUSION', 'SWI', 'STIR', 'GRE']:
+    elif single_clean_name in ['ADC', 'DIFFUSION', 'SWI', 'STIR', 'GRE']:
         if direction is not None:
-            return '_'.join([direction, clean_name])
-        return clean_name
+            return '_'.join([direction, single_clean_name])
+        return single_clean_name
     else:
         if direction is not None and dimensionality is not None:
-            return '_'.join([direction, dimensionality, clean_name])
+            return '_'.join([direction, dimensionality, single_clean_name])
         elif direction is not None:
-            return '_'.join([direction, clean_name])
+            return '_'.join([direction, single_clean_name])
         elif dimensionality is not None:
-            return '_'.join([dimensionality, clean_name])
+            return '_'.join([dimensionality, single_clean_name])
         else:
-            return clean_name
+            return single_clean_name
 
 def classify_scan_type(json_file):
     # Read in metadata
