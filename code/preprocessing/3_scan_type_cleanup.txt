@@ -1,0 +1,2 @@
+Go inside code/scan_type_cleanup_ui/ and run 1_automated_first_pass.py,
+followed by 2_ScanTypeCleanupApp.py.
