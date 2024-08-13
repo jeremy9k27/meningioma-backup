@@ -44,31 +44,47 @@ data_dir = 'data/round2_preprocessing/NURIPS_downloads/Meningiomas_R2'
 alt_dir = 'data/round2_preprocessing/NURIPS_downloads/Meningioma_Removed_B0s'
 dcm = 'resources/DICOM'
 
+def check_for_multiple_scan_types(scan_dir):
+    scan_types = []
+    for f in os.listdir(scan_dir):
+        if f.endswith('.dcm'):
+            dicom = pydicom.dcmread(f'{scan_dir}/{f}')
+            if 'SequenceName' in dicom:
+                scan_types.append(dicom.SequenceName.lower())
+    return sorted(list(set(scan_types)))
+
 #%%---------------------------#
 #### 2. MOVE B0 SCANS AWAY ####
 #-----------------------------#
 for subject in tqdm(lsdir(data_dir), desc='Subjects', total=len(lsdir(data_dir)), position=0, smoothing=0, dynamic_ncols=True, colour='white'):
     for session in tqdm(lsdir(f'{data_dir}/{subject}'), desc='Sessions', total=len(lsdir(f'{data_dir}/{subject}')), position=1, smoothing=0, dynamic_ncols=True, colour='green', leave=False):
         for scan in tqdm(lsdir(f'{data_dir}/{subject}/{session}/scans'), desc='Scans', total=len(lsdir(f'{data_dir}/{subject}/{session}/scans')), position=2, smoothing=0, dynamic_ncols=True, colour='red', leave=False):
-            num = scan.split('-')[0]
-            name = scan.split('-')[-1]
-            destination_dir = f'{alt_dir}/{subject}/{session}/scans/{num}-Removed_B0_{name}/{dcm}'
-            for f in os.listdir(f'{data_dir}/{subject}/{session}/scans/{scan}/{dcm}'):
-                if f.endswith('.dcm'):
-                    current_path = f'{data_dir}/{subject}/{session}/scans/{scan}/{dcm}/{f}'
-                    dicom = pydicom.dcmread(current_path)
-                    if 'SequenceName' in dicom:
-                        if 'b0' in dicom.SequenceName.lower():
-                            if not os.path.exists(destination_dir): os.makedirs(destination_dir)
-                            destination_path = f'{destination_dir}/{f}'
-                            os.rename(current_path, destination_path)
+            scan_types_found = check_for_multiple_scan_types(f'{data_dir}/{subject}/{session}/scans/{scan}/{dcm}')
+            b0_found = False
+            for scan_type in scan_types_found:
+                if 'b0' in scan_type:
+                    b0_found = True
+                    break
+            if len(scan_types_found) > 1 and b0_found:
+                num = scan.split('-')[0]
+                name = scan.split('-')[-1]
+                destination_dir = f'{alt_dir}/{subject}/{session}/scans/{num}-Removed_B0_{name}/{dcm}'
+                for f in os.listdir(f'{data_dir}/{subject}/{session}/scans/{scan}/{dcm}'):
+                    if f.endswith('.dcm'):
+                        current_path = f'{data_dir}/{subject}/{session}/scans/{scan}/{dcm}/{f}'
+                        dicom = pydicom.dcmread(current_path)
+                        if 'SequenceName' in dicom:
+                            if 'b0' in dicom.SequenceName.lower():
+                                if not os.path.exists(destination_dir): os.makedirs(destination_dir)
+                                destination_path = f'{destination_dir}/{f}'
+                                os.rename(current_path, destination_path)
+                            else:
+                                continue
                         else:
                             continue
                     else:
                         continue
-                else:
-                    continue
-            if os.path.exists(destination_dir): print(f'Moved B0s into {subject}/{session}/scans/{num}-Removed_B0_{name}/')
+                if os.path.exists(destination_dir): print(f'Moved B0s into {subject}/{session}/scans/{num}-Removed_B0_{name}/')
 
 # %%
 # ax_diff_count = 0
