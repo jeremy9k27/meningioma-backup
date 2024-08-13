@@ -5,8 +5,6 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
-import tkinter as tk
-from ScanTypeCleanupApp import ScanTypeCleanupApp
 from classify import discard_scan, clean_scan_name, classify_scan_type
 import pandas as pd
 from preprocessing.utils import lsdir, setup
@@ -18,8 +16,8 @@ from tqdm import tqdm
 setup()
 
 input_dir = 'data/round2_preprocessing/output/2_NIFTI'
-output_dir = 'data/round2_preprocessing/output/3_SCAN_TYPE_CLEANUP'
-thumbnails_dir = f'{output_dir}/thumbnails'
+output_dir = 'data/round2_preprocessing/SCAN_TYPE_CLEANUP'
+thumbnails_dir = f'code/scan_type_cleanup_ui/static/thumbnails'
 if not os.path.exists(output_dir): os.makedirs(output_dir)
 if not os.path.exists(thumbnails_dir): os.makedirs(thumbnails_dir)
 
@@ -89,19 +87,10 @@ def automated_first_pass():
                     text = f'Subject: {subject}\nSession: {session}\nScan: {scan}\nShape: {scan_shape}\n{json_stats}'
                     needs_handcheck.append({'id': scan_id, 'image_path': image_path, 'text': text})
 
-    # Save and return relevant lists
+    # Save lists
     pd.DataFrame(discarded_list).to_csv(f'{output_dir}/discarded.csv', index=False)
     pd.DataFrame(automated).to_csv(f'{output_dir}/automated.csv', index=False)
     pd.DataFrame(needs_handcheck).to_csv(f'{output_dir}/needs_handcheck.csv', index=False)
-    return needs_handcheck
 
 if __name__ == "__main__":
-    if os.path.exists(f'{output_dir}/needs_handcheck.csv'):
-        print('Loading data needing handcheck from existing csv...')
-        data_needing_handcheck = pd.read_csv(f'{output_dir}/needs_handcheck.csv').to_dict('records')
-    else:
-        print('Running automated first pass...')
-        data_needing_handcheck = automated_first_pass()
-    root = tk.Tk()
-    app = ScanTypeCleanupApp(root, data_needing_handcheck, output_dir)
-    root.mainloop()
+    automated_first_pass()

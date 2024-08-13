@@ -67,13 +67,15 @@ def clean_scan_name(scan_name, json_file):
         clean_name = 'SWI'
     elif 'stir' in scan_name:
         clean_name = 'STIR'
+    elif 'gre' in scan_name:
+        clean_name = 'GRE'
     else:
         clean_name = None
 
     # combine the direction, dimensionality, and scan type (as appropriate) and return
     if clean_name is None:
         return None
-    elif clean_name in ['ADC', 'DIFFUSION', 'SWI', 'STIR']:
+    elif clean_name in ['ADC', 'DIFFUSION', 'SWI', 'STIR', 'GRE']:
         if direction is not None:
             return '_'.join([direction, clean_name])
         return clean_name
