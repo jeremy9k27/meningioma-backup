@@ -62,7 +62,6 @@ def start():
     csv_files = [f for f in os.listdir(output_dir) if f.endswith('.csv')]
     # take the file with the latest timestamp
     latest_file = max(csv_files) if csv_files else None
-    if 'completed_handchecked.csv' in csv_files: latest_file = 'completed_handchecked.csv'
     if latest_file:
         # load the latest file
         responses = pd.read_csv(f'{output_dir}/{latest_file}')
@@ -133,7 +132,8 @@ def finish(username):
     global responses
     global data_needing_handcheck
 
-    filename = f"{output_dir}/completed_handchecked.csv"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{output_dir}/{timestamp}.csv"
     pd.DataFrame(responses).to_csv(filename, index=False)
     flash(f"Thank you for your responses! They have been saved to {filename}.")
 
