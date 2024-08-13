@@ -33,29 +33,31 @@
 import os
 import pydicom
 from utils import setup, lsdir
+from tqdm import tqdm
 
 #%%-------------------------#
 #### 1. SET UP FILEPATHS ####
 #---------------------------#
 setup()
 
-data_dir = 'data/preprocessing/NURIPS_downloads/Meningiomas_handchecked'
-alt_dir = 'data/preprocessing/NURIPS_downloads/Meningiomas'
+data_dir = 'data/round2_preprocessing/NURIPS_downloads/Meningiomas_R2'
+alt_dir = 'data/round2_preprocessing/NURIPS_downloads/Meningioma_Removed_B0s'
 dcm = 'resources/DICOM'
 
 #%%---------------------------#
 #### 2. MOVE B0 SCANS AWAY ####
 #-----------------------------#
-for subject in lsdir(data_dir):
-    for session in lsdir(f'{data_dir}/{subject}'):
-        for scan in lsdir(f'{data_dir}/{subject}/{session}/ready_for_preprocessing'):
-            if scan.endswith('AX_DIFFUSION'):
-                num = scan.split('-')[0]
-                destination_dir = f'{alt_dir}/{subject}/{session}/scans/{num}-B0_FROM_AX_DIFFUSION_TRACEW/{dcm}'
-                for f in os.listdir(f'{data_dir}/{subject}/{session}/ready_for_preprocessing/{scan}/{dcm}'):
-                    if f.endswith('.dcm'):
-                        current_path = f'{data_dir}/{subject}/{session}/ready_for_preprocessing/{scan}/{dcm}/{f}'
-                        dicom = pydicom.dcmread(current_path)
+for subject in tqdm(lsdir(data_dir), desc='Subjects', total=len(lsdir(data_dir)), position=0, smoothing=0, dynamic_ncols=True, colour='white'):
+    for session in tqdm(lsdir(f'{data_dir}/{subject}'), desc='Sessions', total=len(lsdir(f'{data_dir}/{subject}')), position=1, smoothing=0, dynamic_ncols=True, colour='green', leave=False):
+        for scan in tqdm(lsdir(f'{data_dir}/{subject}/{session}/scans'), desc='Scans', total=len(lsdir(f'{data_dir}/{subject}/{session}/scans')), position=2, smoothing=0, dynamic_ncols=True, colour='red', leave=False):
+            num = scan.split('-')[0]
+            name = scan.split('-')[-1]
+            destination_dir = f'{alt_dir}/{subject}/{session}/scans/{num}-Removed_B0_{name}/{dcm}'
+            for f in os.listdir(f'{data_dir}/{subject}/{session}/scans/{scan}/{dcm}'):
+                if f.endswith('.dcm'):
+                    current_path = f'{data_dir}/{subject}/{session}/scans/{scan}/{dcm}/{f}'
+                    dicom = pydicom.dcmread(current_path)
+                    if 'SequenceName' in dicom:
                         if 'b0' in dicom.SequenceName.lower():
                             if not os.path.exists(destination_dir): os.makedirs(destination_dir)
                             destination_path = f'{destination_dir}/{f}'
@@ -64,32 +66,32 @@ for subject in lsdir(data_dir):
                             continue
                     else:
                         continue
-                if os.path.exists(destination_dir): print(f'Moved B0s into {subject}/{session}/scans/{num}-B0_FROM_AX_DIFFUSION_TRACEW/')
-            else:
-                continue
+                else:
+                    continue
+            if os.path.exists(destination_dir): print(f'Moved B0s into {subject}/{session}/scans/{num}-Removed_B0_{name}/')
 
 # %%
-ax_diff_count = 0
-b1000_count = 0
-for subject in lsdir(data_dir):
-    for session in lsdir(f'{data_dir}/{subject}'):
-        for scan in lsdir(f'{data_dir}/{subject}/{session}/ready_for_preprocessing'):
-            if scan.endswith('AX_DIFFUSION'):
-                ax_diff_count += 1
-                for f in os.listdir(f'{data_dir}/{subject}/{session}/ready_for_preprocessing/{scan}/{dcm}'):
-                    if f.endswith('.dcm'):
-                        current_path = f'{data_dir}/{subject}/{session}/ready_for_preprocessing/{scan}/{dcm}/{f}'
-                        dicom = pydicom.dcmread(current_path)
-                        if 'b1000' in dicom.SequenceName.lower():
-                            b1000_count += 1
-                            break
-                        else:
-                            continue
-                    else:
-                        continue
-            else:
-                continue
+# ax_diff_count = 0
+# b1000_count = 0
+# for subject in tqdm(lsdir(data_dir), desc='Subjects', total=len(lsdir(data_dir)), position=0, smoothing=0, dynamic_ncols=True, colour='white'):
+#     for session in lsdir(f'{data_dir}/{subject}'):
+#         for scan in lsdir(f'{data_dir}/{subject}/{session}/ready_for_preprocessing'):
+#             if scan.endswith('AX_DIFFUSION'):
+#                 ax_diff_count += 1
+#                 for f in os.listdir(f'{data_dir}/{subject}/{session}/ready_for_preprocessing/{scan}/{dcm}'):
+#                     if f.endswith('.dcm'):
+#                         current_path = f'{data_dir}/{subject}/{session}/ready_for_preprocessing/{scan}/{dcm}/{f}'
+#                         dicom = pydicom.dcmread(current_path)
+#                         if 'b1000' in dicom.SequenceName.lower():
+#                             b1000_count += 1
+#                             break
+#                         else:
+#                             continue
+#                     else:
+#                         continue
+#             else:
+#                 continue
 
-assert ax_diff_count == b1000_count, f'Found {ax_diff_count} AX_DIFFUSION scans and {b1000_count} b1000 scans.'
-print('Done!')
+# assert ax_diff_count == b1000_count, f'Found {ax_diff_count} AX_DIFFUSION scans and {b1000_count} b1000 scans.'
+# print('Done!')
 # %%
