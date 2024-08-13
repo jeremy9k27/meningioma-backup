@@ -6,7 +6,11 @@
     <title>Scan Type Cleanup App</title>
 </head>
 <body>
-    <h2>Thank You!</h2>
-    <p>Your responses have been saved.</p>
+    <h2>End of scans</h2>
+    <p>You have reached the end of the scans. Please click the 'Finish & Logout' button below to save your responses and return to the homepage. Thank you!</p>
+    
+    <form action="{{ url_for('index') }}" method="get">
+        <button type="submit">Finish & Logout</button>
+    </form>
 </body>
 </html>
