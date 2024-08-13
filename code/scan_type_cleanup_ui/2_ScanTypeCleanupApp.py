@@ -10,7 +10,7 @@ app.secret_key = 'your_secret_key'
 # Load data
 index_images_dir = '/home/lgc2035/Meningioma/code/scan_type_cleanup_ui/static/index_images'
 url_for_index_image = None
-input_dir = '/home/lgc2035/Meningioma/data/3_SCAN_TYPE_CLEANUP'
+input_dir = '/home/lgc2035/Meningioma/data/round2_preprocessing/SCAN_TYPE_CLEANUP'
 data_file = f'{input_dir}/needs_handcheck.csv'
 data_needing_handcheck = pd.read_csv(data_file)
 
