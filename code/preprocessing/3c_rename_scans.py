@@ -45,7 +45,7 @@ def breakdown_filename(filename):
     fine_parts = sub_session_num.split('_')
     scan_num = fine_parts[-1]
     subject_num = fine_parts[0]
-    session = fine_parts[1:-1].join('_')
+    session = '_'.join(fine_parts[1:-1])
     return subject_num, session, scan_num, scan_name
 
 for scan_type in tqdm(dirs_of_interest, desc='Scan types', total=len(dirs_of_interest), position=0, smoothing=0.5, dynamic_ncols=True, colour='green'):
@@ -59,7 +59,7 @@ for scan_type in tqdm(dirs_of_interest, desc='Scan types', total=len(dirs_of_int
             cur_dest_dir = f'{dest_dir}/{subject_num}/{subject_num}_{session}/{scan_num}-{scan_type}/'            
             dest_scan = f'{cur_dest_dir}/{subject_num}_{session}_{scan_num}-{scan_type}.nii.gz'
             dest_json = f'{cur_dest_dir}/{subject_num}_{session}_{scan_num}-{scan_type}.json'
-            
+
             if not os.path.exists(cur_dest_dir): os.makedirs(cur_dest_dir)
             shutil.copy(origin_scan, dest_scan)
             shutil.copy(origin_json, dest_json)
