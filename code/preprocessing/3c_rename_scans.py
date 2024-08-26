@@ -39,9 +39,8 @@ dirs_of_interest = ['AX_3D_T1_POST', 'AX_ADC', 'AX_DIFFUSION', 'SAG_3D_FLAIR']
 
 def breakdown_filename(filename):
     parts = filename.replace('.png', '').split('-')
-    assert len(parts) == 2, f'Filename {filename} is not in the expected format'
     sub_session_num = parts[0]
-    scan_name = parts[-1]
+    scan_name = '-'.join(parts[1:])
     fine_parts = sub_session_num.split('_')
     scan_num = fine_parts[-1]
     subject_num = fine_parts[0]
