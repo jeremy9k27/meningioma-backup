@@ -31,7 +31,7 @@ import os
 setup()
 
 # data_dir = 'data/preprocessing/NURIPS_downloads/Meningiomas_handchecked'
-data_dir = 'data/preprocessing/output/2_NIFTI'
+data_dir = 'data/preprocessing/output/3_RENAMED_SCANS'
 # dir_of_interest = 'ready_for_preprocessing' # or 'ask_virginia'
 dir_of_interest = ''
 

@@ -32,7 +32,7 @@
 #     This script takes care of skipping over scans that have already been skull stripped, so you can just rerun it.
 #
 #   * Some scans may look like they were skull stripped based on the log file, but then when you view the output in 3DSlicer 
-#     or using the 5b script, nothing shows up, even though the corresponding scan from step 4 is easy to view and looks normal. 
+#     or using the 6b script, nothing shows up, even though the corresponding scan from step 4 is easy to view and looks normal. 
 #     I don't understand what's going on here yet... One such scan is 115_Brainlab/21-AX_3D_T1_POST. Need to check for others...
 
 #--------------------------#
@@ -53,8 +53,8 @@ setup()
 
 skull_stripper = './code/preprocessing/synthstrip-docker'
 
-data_dir = 'data/preprocessing/output/7_COMPLETED_PREPROCESSED' # was 3_N4_BIAS_FIELD_CORRECTED
-output_dir = 'data/preprocessing/output/8_SKULLSTRIPPED_COMPLETED_PREPROCESSED' # was 4_SKULLSTRIPPED
+data_dir = 'data/round2_preprocessing/output/5_N4_BIAS_FIELD_CORRECTED'
+output_dir = 'data/round2_preprocessing/output/6_SKULLSTRIPPED'
 log_dir = f'{output_dir}/logs'
 
 if not os.path.exists(output_dir): os.makedirs(output_dir)

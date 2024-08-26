@@ -62,8 +62,8 @@ import time
 setup()
 
 data_dir = 'data/round2_preprocessing/output/3_RENAMED_SCANS'
-output_dir = 'data/round2_preprocessing/output/5_N4_BIAS_FIELD_CORRECTED'
-overall_log_file = 'data/preprocessing/output/5_N4_BIAS_FIELD_CORRECTED/log.txt'
+output_dir = 'data/round2_preprocessing/output/4_N4_BIAS_FIELD_CORRECTED'
+overall_log_file = 'data/preprocessing/output/4_N4_BIAS_FIELD_CORRECTED/log.txt'
 log_dir = f'{output_dir}/logfiles'
 
 save_bias_field = False
