@@ -12,7 +12,7 @@
 #--------------------------#
 ####      N. NOTES      ####
 #--------------------------#
-# This script is meant to
+# This script renames scans based on their thumbnail's location in the 3_RENAMED_SCANS/thumbnails/FINISHED folder
 #
 # This script relies on the following file(s) as inputs:
 #   * data/round2_preprocessing/output/2_NIFTI/*
@@ -53,15 +53,16 @@ for scan_type in tqdm(dirs_of_interest, desc='Scan types', total=len(dirs_of_int
     for thumb in tqdm(thumbs, desc='Thumbnails', total=len(thumbs), position=1, smoothing=0.5, dynamic_ncols=True, colour='blue'):
         try:
             subject_num, session, scan_num, scan_name = breakdown_filename(thumb)
+            
             origin_scan = f'{origin_dir}/{subject_num}/{subject_num}_{session}/{scan_num}-{scan_name}/{subject_num}_{session}_{scan_num}-{scan_name}.nii.gz'
             origin_json = f'{origin_dir}/{subject_num}/{subject_num}_{session}/{scan_num}-{scan_name}/{subject_num}_{session}_{scan_num}-{scan_name}.json'
-            cur_dest_dir = f'{dest_dir}/{subject_num}/{subject_num}_{session}/{scan_num}-{scan_name}/'
-            if not os.path.exists(cur_dest_dir):
-                os.makedirs(cur_dest_dir)
+            cur_dest_dir = f'{dest_dir}/{subject_num}/{subject_num}_{session}/{scan_num}-{scan_type}/'            
+            dest_scan = f'{cur_dest_dir}/{subject_num}_{session}_{scan_num}-{scan_type}.nii.gz'
+            dest_json = f'{cur_dest_dir}/{subject_num}_{session}_{scan_num}-{scan_type}.json'
             
-            dest_json = f'{cur_dest_dir}/{subject_num}_{session}_{scan_num}-{scan_name}.json'
-            dest_scan = f'{cur_dest_dir}/{subject_num}_{session}_{scan_num}-{scan_name}.nii.gz'
+            if not os.path.exists(cur_dest_dir): os.makedirs(cur_dest_dir)
             shutil.copy(origin_scan, dest_scan)
+            shutil.copy(origin_json, dest_json)
 
         except Exception as e:
             print(f'Error processing {thumb}: {e}')
