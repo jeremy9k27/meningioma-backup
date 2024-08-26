@@ -4,7 +4,7 @@ import warnings
 
 def discard_scan(scan_name):
     scanl = scan_name.lower()
-    if 'scout' in scanl or 'b500' in scanl or 'b=500' in scanl or 'b_500' in scanl or 'b_0' in scanl or 'b0' in scanl or 'b=0' in scanl or '_nd' in scanl or '_mpr_' in scanl or scanl.endswith('mpr') or 'reformat' in scanl or 'rfmt' in scanl or 'localizer' in scanl or 'loc' in scanl:
+    if 'scout' in scanl or 'b500' in scanl or 'b=500' in scanl or 'b_500' in scanl or 'b_0' in scanl or 'b0' in scanl or 'b=0' in scanl or '_nd' in scanl or '_mpr_' in scanl or scanl.endswith('mpr') or 'reformat' in scanl or 'rfmt' in scanl or 'localizer' in scanl or 'loc' in scanl or 'eadc' in scanl:
         return True
     if 'mpr' in scanl and 'mprage' not in scanl:
         return True
