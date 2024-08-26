@@ -53,8 +53,8 @@ setup()
 
 skull_stripper = './code/preprocessing/synthstrip-docker'
 
-data_dir = 'data/round2_preprocessing/output/5_N4_BIAS_FIELD_CORRECTED'
-output_dir = 'data/round2_preprocessing/output/6_SKULLSTRIPPED'
+data_dir = 'data/round2_preprocessing/output/4_N4_BIAS_FIELD_CORRECTED'
+output_dir = 'data/round2_preprocessing/output/5_SKULLSTRIPPED'
 log_dir = f'{output_dir}/logs'
 
 if not os.path.exists(output_dir): os.makedirs(output_dir)

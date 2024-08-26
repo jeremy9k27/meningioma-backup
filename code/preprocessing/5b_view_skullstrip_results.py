@@ -21,11 +21,11 @@ import cv2
 
 setup()
 
-def view_skullstrip_results(data_dir='data/preprocessing/output', scan_type='AX_3D_T1_POST', subjects_to_plot=None, num_subjects=4, cmap='gray', fig_height=6, orientation='RSA', have_ss=False):
+def view_skullstrip_results(data_dir='data/round2_preprocessing/output', scan_type='AX_3D_T1_POST', subjects_to_plot=None, num_subjects=4, cmap='gray', fig_height=6, orientation='RSA', have_ss=False):
     """
     Author: Lawrence Chillrud
     """
-    before_dir = f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED'
+    before_dir = f'{data_dir}/4_N4_BIAS_FIELD_CORRECTED'
     if have_ss:
         after_dir = f'{data_dir}/5_SKULLSTRIPPED'
     else:
