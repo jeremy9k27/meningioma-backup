@@ -45,9 +45,9 @@ from tqdm import tqdm
 #-------------------------#
 setup()
 
-skullstrip_dir = 'data/preprocessing/output/4_SKULLSTRIPPED' # set this to None if you don't want to use skullstripped intermediary images for SWI and DWI scans
-data_dir = 'data/preprocessing/output/5b_ZSCORE_NORMALIZED'
-output_dir = 'data/preprocessing/output/6c_NONLIN_WARP_REGISTERED'
+skullstrip_dir = 'data/preprocessing/output/5_SKULLSTRIPPED' # set this to None if you don't want to use skullstripped intermediary images for SWI and DWI scans
+data_dir = 'data/preprocessing/output/6_ZSCORE_NORMALIZED'
+output_dir = 'data/preprocessing/output/7_REGISTERED'
 log_dir = f'{output_dir}/logfiles'
 num_workers = 4
 
@@ -68,7 +68,7 @@ mni_template = ants.image_read(mni_template_path, reorient='IAL')
 def save_transforms(tx, output_path):
     try:
         for i, t in enumerate(tx):
-            suffix = t.split('.')[-1]
+            suffix = '.'.join(t.split('.')[1:])
             logging.info(f"\t\t\tAttempting to save transform {i}/{len(tx)} as {output_path}_transform_tx_{i}.{suffix}...")
             shutil.copy(t, f'{output_path}_transform_tx_{i}.{suffix}')
             logging.info(f"\t\t\tSuccess!")
@@ -78,17 +78,51 @@ def save_transforms(tx, output_path):
 #-----------------------#
 #### 2. REGISTRATION ####
 #-----------------------#
+def prop_existing_txs(subject):
+    tx_dir = f'data/preprocessing/output/6b_REGISTERED/{subject}'
+    session = lsdir(tx_dir)[0]
+    scan = [s for s in lsdir(f'{tx_dir}/{session}') if s.endswith('AX_ADC')][0]
+
+
 def register_subject(subject):
+    """
+    Registration is done as follows:
+    1. Register the AX 3D T1 POST scan to the MNI template, save the resulting transforms
+    2. Register the 'pre-requisite' scans (e.g. SAG 3D FLAIR) to the AX 3D T1 POST scan, save the resulting transforms
+    3. Propogate the transforms from the AX 3D T1 POST -> MNI template onto the pre-requisite scans
+    4. Register SWI, and DWI scans to the appropriate pre-requisite scan, save the resulting transforms
+    5. Propogate the transforms from the DWI -> pre-req scan onto the ADC scan
+    6. Propogate the transforms from the pre-req scan -> AX 3D T1 POST onto the SWI, DWI, and ADC scans
+    7. Propogate the transforms from the AX 3D T1 POST -> MNI template onto the SWI, DWI, and ADC scans
+    In this way, all scans are registered to the MNI template, and the transforms are saved for each step.
+
+    * E.g., ADC -> SAG 3D FLAIR (via DWI) -> AX 3D T1 POST -> MNI template
+    * E.g., DWI, SWI -> SAG 3D FLAIR -> AX 3D T1 POST -> MNI template
+    * E.g., SAG 3D FLAIR -> AX 3D T1 POST -> MNI template
+    * E.g., AX 3D T1 PRE -> AX 3D T1 POST -> MNI template
+    * E.g., AX 3D T1 POST -> MNI template
+    """
+    # Some of the subjects have already been registered from the previous round of pre-processing
+    # But, we have rescaled their AX_ADC scans since that is a global normalization step, so we need to re-register them
+    # We probably don't want to re-register them from scratch, 1) because the work has already been done, 
+    # and 2) because those subjects were segmented with those original registrations, and we definitely don't want to re-segment them
+    # So, we will propogate the existing transforms onto the new AX_ADC scans in a separate function
+    if subject not in lsdir(skullstrip_dir):
+        return prop_existing_txs(subject)
+    
+    # Setting up logging
     log_file = os.path.join(log_dir, f'{subject}-log.txt')
     logging.basicConfig(filename=log_file, level=logging.INFO, format='%(message)s')
-    
     begin_time = time.time()
 
+    # Go thru each session for the subject, one at a time
     for session in lsdir(f'{data_dir}/{subject}'):
 
+        # Read in available scans for the session
         current_scans = lsdir(f'{data_dir}/{subject}/{session}')
         scan_types = [scan.split('-')[-1] for scan in current_scans]
 
+        # Keep track of which scans are available for the session
         has_post = False
         has_swi = False
         has_dwi = False
@@ -104,12 +138,17 @@ def register_subject(subject):
         if 'SAG_3D_T2' in scan_types: has_t2 = True
         if 'AX_ADC' in scan_types: has_adc = True
 
+        # If there is no AX 3D T1 POST scan, then we can't register the session, since that is the intra-subject template
         if not has_post:
             logging.info(f"Warning: No {intra_subject_template} scan found for {session}, therefore skipping session: {session}")
             continue
         else:
             logging.info(f"Starting registration for the session: {session}")
 
+        # Pre-requisite scans are those scans that can be registered to the intra-subject template (AX 3D T1 POST), 
+        # and then propogated to the MNI template, without any intermediary steps (e.g., SAG 3D FLAIR, AX 3D T1 PRE, SAG 3D T2).
+        # Other scans like SWI, DIFFUSION, ADC, then rely on the saved transforms from the pre-requisite scans, 
+        # since they require an intermediary step, e.g., AX_ADC -> SAG 3D FLAIR -> AX T1 POST -> MNI template 
         pre_req_scans = current_scans
         pre_req_scans = [s for s in pre_req_scans if not s.endswith('AX_3D_T1_POST')]
         if has_swi: pre_req_scans = [s for s in pre_req_scans if not s.endswith('AX_SWI')]
@@ -132,16 +171,15 @@ def register_subject(subject):
         elif has_dwi and has_t2:
             dwi_intermediary = 'SAG_3D_T2'
 
+        #### REGISTRATION 1: AX 3D T1 POST -> MNI TEMPLATE ####
+        # Get the intra-subject template scan for the session (AX 3D T1 POST), and make sure it has 1x1x1mm spacing
         intra_subject_template_scan_path = [s for s in current_scans if s.endswith(intra_subject_template)][0]
         intra_subject_template_scan = read_example_mri(data_dir, subject, session, intra_subject_template_scan_path, ants=True, orientation='IAL')
         if intra_subject_template_scan.spacing != (1.0, 1.0, 1.0):
             logging.info(f"\tWarning: {session}/{intra_subject_template_scan_path} does not have 1x1x1mm spacing. Instead it has: {intra_subject_template_scan.spacing}")
         
-        swi_intermediary_transform = None
-        dwi_intermediary_transform = None
-
         # This is the first step of registration: register a subject's AX 3D T1 POST image to the MNI template
-        type_of_transform = 'SyNRA'
+        type_of_transform = 'Affine'
         logging.info(f"\tPerforming {type_of_transform.lower()} registration to {mni_template_path.split('/')[-1]} for scan {intra_subject_template}")
         mni_transform = ants.registration(
             fixed=mni_template,
@@ -150,12 +188,18 @@ def register_subject(subject):
             verbose=False
         )
 
+        # Save the registered AX 3D T1 POST image (registered to MNI template) and the transforms from that registration
         cur_output_dir = f'{output_dir}/{subject}/{session}/{intra_subject_template_scan_path}'
         if not os.path.exists(cur_output_dir): os.makedirs(cur_output_dir)
         mni_transform['warpedmovout'].to_file(f'{cur_output_dir}/{session}_{intra_subject_template_scan_path}.nii.gz')
         shutil.copy(f'{data_dir}/{subject}/{session}/{intra_subject_template_scan_path}/{session}_{intra_subject_template_scan_path}.json', f'{cur_output_dir}/{session}_{intra_subject_template_scan_path}.json')
         save_transforms(mni_transform['fwdtransforms'], f'{cur_output_dir}/{session}_{intra_subject_template_scan_path}_{type_of_transform}_to_MNI')
 
+        # Initialize intermediary transforms for SWI and DWI scans
+        swi_intermediary_transform = None
+        dwi_intermediary_transform = None
+
+        #### REGISTRATIONS 2 & 3: PRE-REQUISITE SCANS -> AX 3D T1 POST -> MNI TEMPLATE ####
         logging.info(f"\tAffine transforming the pre-requisite scans {pre_req_scans} to {intra_subject_template_scan_path}, then propogating affine registration ({intra_subject_template_scan_path} -> {mni_template_path.split('/')[-1]}) onto each scan")
         for scan in pre_req_scans:
             cur_input_dir = f'{data_dir}/{subject}/{session}/{scan}'
@@ -168,6 +212,7 @@ def register_subject(subject):
                 original_mri = read_example_mri(data_dir, subject, session, scan, ants=True, orientation='IAL')
 
                 try:
+                    #### REGISTRATION 2: PRE-REQUISITE SCANS -> AX 3D T1 POST ####
                     logging.info(f"\t\t\tAffine transforming {scan} to {intra_subject_template_scan_path}")
                     type_of_transform = 'Affine'
                     intra_subject_transform = ants.registration(
@@ -176,11 +221,14 @@ def register_subject(subject):
                         type_of_transform=type_of_transform,
                         verbose=False
                     )
+                    # Save transformed image
                     intra_subject_transform['warpedmovout'].to_file(f'{cur_output_dir}/{session}_{scan}_{type_of_transform}_registration_to_{intra_subject_template}.nii.gz')
+                    # Save the actual transforms
                     save_transforms(intra_subject_transform['fwdtransforms'], f'{cur_output_dir}/{session}_{scan}_{type_of_transform}_to_{intra_subject_template}')
                     if scan_type == swi_intermediary: swi_intermediary_transform = intra_subject_transform['fwdtransforms']
                     if scan_type == dwi_intermediary: dwi_intermediary_transform = intra_subject_transform['fwdtransforms']
 
+                    #### REGISTRATION 3: PROPOGATE AX 3D T1 POST -> MNI template onto PRE-REQ SCANS ####
                     logging.info(f"\t\t\tPropogating the registration from {intra_subject_template_scan_path} -> {mni_template_path.split('/')[-1]} onto {scan}")
                     propogated_mni_transform = ants.apply_transforms(
                         fixed=mni_template,
@@ -188,7 +236,7 @@ def register_subject(subject):
                         transformlist=mni_transform['fwdtransforms'],
                         verbose=False
                     )
-
+                    # Save the finalized registered PRE REQ image
                     propogated_mni_transform.to_file(f'{cur_output_dir}/{session}_{scan}.nii.gz')
 
                 except Exception as e:
@@ -197,6 +245,8 @@ def register_subject(subject):
                     logging.info(f"\t\t\tMoving shape: {original_mri.numpy().shape}")
                     logging.info(f"\t\t\tUnable to register {scan}\n")
         
+        # Next step: dealing with SWI, DWI, and ADC scans
+        # Make a list of the scans needing registration
         swi_dwi_scans = []
         if has_swi:
             swi_path = [s for s in current_scans if s.endswith('AX_SWI')][0]
@@ -208,11 +258,13 @@ def register_subject(subject):
             adc_path = [s for s in current_scans if s.endswith('AX_ADC')][0]
             swi_dwi_scans.append(adc_path)
         
+        # Initialize intermediary transform
         dwi_transform = None
 
         if len(swi_dwi_scans) > 0:
             logging.info(f"\tAffine transforming {swi_dwi_scans} scans to {intra_subject_template_scan_path} then propogating affine registration ({intra_subject_template_scan_path} -> {mni_template_path.split('/')[-1]}) onto each scan")
             for scan in swi_dwi_scans:
+                # Set up filepaths for the current scan, read in the current scan
                 cur_input_dir = f'{data_dir}/{subject}/{session}/{scan}'
                 cur_output_dir = f'{output_dir}/{subject}/{session}/{scan}'
                 scan_type = scan.split('-')[-1]
@@ -222,6 +274,7 @@ def register_subject(subject):
                     shutil.copy(f'{cur_input_dir}/{session}_{scan}.json', f'{cur_output_dir}/{session}_{scan}.json')
                     original_mri = read_example_mri(data_dir, subject, session, scan, ants=True, orientation='IAL')
 
+                    # Set up intermediary scan and transforms
                     if scan_type == 'AX_SWI':
                         intermediary = swi_intermediary
                         intermediary_transform = swi_intermediary_transform
@@ -231,6 +284,7 @@ def register_subject(subject):
 
                     intermediary_path = [s for s in current_scans if s.endswith(intermediary)][0]
 
+                    # For SWI, DWI, and ADC scans, we want to use the skullstripped images as intermediaries if they exist, otherwise use the original images
                     intermediary_dir = data_dir
                     if skullstrip_dir: intermediary_dir = skullstrip_dir
                     logging.info(f"\t\t\tSubstep 1/3: Affine transforming {scan} to {intermediary_path} (from {intermediary_dir})")
@@ -238,36 +292,46 @@ def register_subject(subject):
                     
                     type_of_transform = 'Affine'
                     try:
+                        # ADC is last in the list and originates from the Diffusion scan, so all we have to do first is propogate the transform from the Diffusion scan below
+                        # For everything else, we first need to register the scan to the intermediary scan
                         if scan_type != 'AX_ADC':
+                            #### REGISTRATION 4: SWI, DWI -> INTERMEDIARY SCAN ####
                             intra_subject_int_transform = ants.registration(
                                 fixed=intermediary_mri,
                                 moving=original_mri,
                                 type_of_transform=type_of_transform,
                                 verbose=False
                             )
+                            # Save the transformed image
                             intra_subject_int_transform['warpedmovout'].to_file(f'{cur_output_dir}/{session}_{scan}_{type_of_transform}_registration_to_{intermediary}.nii.gz')
+                            # Save the actual transforms
                             save_transforms(intra_subject_int_transform['fwdtransforms'], f'{cur_output_dir}/{session}_{scan}_{type_of_transform}_to_{intermediary}')
+                            # Set the transform for the DWI scan to propogate onto the ADC scan below
                             if scan_type == 'AX_DIFFUSION': dwi_transform = intra_subject_int_transform['fwdtransforms']
                         else:
+                            #### REGISTRATION 5: ADC -> DWI SCAN ####
                             intra_subject_int_transform = ants.apply_transforms(
                                 fixed=intermediary_mri,
                                 moving=original_mri,
                                 transformlist=dwi_transform,
                                 verbose=False
                             )
+                            # Save the transformed image
                             intra_subject_int_transform.to_file(f'{cur_output_dir}/{session}_{scan}_{type_of_transform}_registration_to_{intermediary}.nii.gz')
                         logging.info(f"\t\t\tSubstep 2/3: Propogating the affine transform from {intermediary_path} -> {intra_subject_template_scan_path} onto {scan}")
+                        # Only use the warpedmovout if the scan is not an ADC scan, since if it is the ADC scan, the intra_subject_int_transform is already the warpedmovout (since it was propogated from the DWI scan)
                         if scan_type != 'AX_ADC': intra_subject_int_transform = intra_subject_int_transform['warpedmovout']
 
+                        #### REGISTRATION 6: PROPOGATE INTERMEDIARY SCAN -> AX 3D T1 POST transform onto SWI, DWI, ADC ####
                         intra_subject_transform = ants.apply_transforms(
                             fixed=intra_subject_template_scan,
                             moving=intra_subject_int_transform,
                             transformlist=intermediary_transform,
                             verbose=False
                         )
-
                         intra_subject_transform.to_file(f'{cur_output_dir}/{session}_{scan}_{type_of_transform}_propogated_registration_using_transform_from_{intermediary_path}_to_{intra_subject_template}.nii.gz')
 
+                        #### REGISTRATION 7: PROPOGATE AX 3D T1 POST -> MNI template onto SWI, DWI, ADC ####
                         logging.info(f"\t\t\tSubstep 3/3: Propogating the affine registration from {intra_subject_template_scan_path} -> {mni_template_path.split('/')[-1]} onto {scan}")
                         propogated_mni_transform = ants.apply_transforms(
                             fixed=mni_template,
@@ -275,7 +339,6 @@ def register_subject(subject):
                             transformlist=mni_transform['fwdtransforms'],
                             verbose=False
                         )
-
                         propogated_mni_transform.to_file(f'{cur_output_dir}/{session}_{scan}.nii.gz')
 
                     except Exception as e:
