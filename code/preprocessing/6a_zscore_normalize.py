@@ -49,9 +49,9 @@ begin_time = time.time()
 #-----------------------------------#
 #### 1. FILE WRANGLING & READING ####
 #-----------------------------------#
-data_dir = 'data/preprocessing/output/3_N4_BIAS_FIELD_CORRECTED'
-skullstrip_dir = 'data/preprocessing/output/4_SKULLSTRIPPED'
-output_dir = 'data/preprocessing/output/5b_ZSCORE_NORMALIZED'
+data_dir = 'data/round2_preprocessing/output/4_N4_BIAS_FIELD_CORRECTED'
+skullstrip_dir = 'data/round2_preprocessing/output/5_SKULLSTRIPPED'
+output_dir = 'data/round2_preprocessing/output/6_ZSCORE_NORMALIZED'
 
 log_file = os.path.join(output_dir, 'log.txt')
 
@@ -69,7 +69,7 @@ date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 bar = '=' * 160
 os.system(f"echo '\n{bar}' >> {log_file}")
 os.system(f"echo '{bar}' >> {log_file}")
-os.system(f"echo '\nRunning script 5a_zscore_normalize.py at {date}\n' >> {log_file}")
+os.system(f"echo '\nRunning script 6a_zscore_normalize.py at {date}\n' >> {log_file}")
 
 gaussian_blur = False
 sigma = (0.5,)
@@ -114,6 +114,24 @@ pprint(scan_types_dict, stream=open(log_file, 'a'))
 os.system(f"echo '' >> {log_file}")
 global_scan_types = ['AX_ADC']
 os.system(f"echo 'Note that scans of type {global_scan_types} will be globally z-score normalized, rather than individually, i.e., per volumetric image\n' >> {log_file}")
+
+# populate input and output filepaths with the older ADC scans, since they are z-scored globally
+old_adc_scan_dirs = ['data/preprocessing/output/3_N4_BIAS_FIELD_CORRECTED']
+old_adc_skullstrip_dirs = ['data/preprocessing/output/4_SKULLSTRIPPED']
+for old_adc_scan_dir, old_adc_skullstrip_dir in zip(old_adc_scan_dirs, old_adc_skullstrip_dirs):
+    for subject in lsdir(old_adc_scan_dir):
+        for session in lsdir(f'{old_adc_scan_dir}/{subject}'):
+            for scan in lsdir(f'{old_adc_scan_dir}/{subject}/{session}'):
+                if 'AX_ADC' in scan:
+                    cur_input_dir = f'{old_adc_scan_dir}/{subject}/{session}/{scan}'
+                    cur_skullstrip_dir = f'{old_adc_skullstrip_dir}/{subject}/{session}/{scan}'
+                    cur_output_dir = f'{output_dir}/{subject}/{session}/{scan}'
+                    if not os.path.exists(cur_output_dir): 
+                        os.makedirs(cur_output_dir)
+                        shutil.copy(f'{cur_input_dir}/{session}_{scan}.json', f'{cur_output_dir}/{session}_{scan}.json')
+                    input_filepaths.append(f'{cur_input_dir}/{session}_{scan}.nii.gz')
+                    input_mask_filepaths.append(f'{cur_skullstrip_dir}/brain_mask.nii.gz')
+                    output_filepaths.append(f'{cur_output_dir}/{session}_{scan}.nii.gz')
 
 #%%-------------------------#
 #### 2. NORMALIZE IMAGES ####
@@ -199,7 +217,7 @@ for i, scan_type in enumerate(scan_types_to_normalize):
 date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 total_elapsed_time = str(timedelta(seconds=time.time() - begin_time))
 
-os.system(f"echo 'Completed 5a_zscore_normalization.py at {date}' >> {log_file}")
+os.system(f"echo 'Completed 6a_zscore_normalization.py at {date}' >> {log_file}")
 os.system(f"echo 'Total elapsed time: {total_elapsed_time}' >> {log_file}")
 os.system(f"echo '\n{bar}' >> {log_file}")
 os.system(f"echo '{bar}' >> {log_file}")
