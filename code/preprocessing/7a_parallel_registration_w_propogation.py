@@ -1,4 +1,4 @@
-# File: 6a_parallel_registration_w_propogation.py
+# File: 7a_parallel_registration_w_propogation.py
 # Date: 02/10/2024
 # Author: Lawrence Chillrud <chili@u.northwestern.edu>
 # Description: Performs registration on the volumetric MRI scans.
@@ -45,9 +45,10 @@ from tqdm import tqdm
 #-------------------------#
 setup()
 
-skullstrip_dir = 'data/preprocessing/output/5_SKULLSTRIPPED' # set this to None if you don't want to use skullstripped intermediary images for SWI and DWI scans
-data_dir = 'data/preprocessing/output/6_ZSCORE_NORMALIZED'
-output_dir = 'data/preprocessing/output/7_REGISTERED'
+tx_dir = f'data/preprocessing/output/6b_REGISTERED' # directory where the transforms are saved to propogate onto new AX_ADC scans
+skullstrip_dir = 'data/round2_preprocessing/output/5_SKULLSTRIPPED' # set this to None if you don't want to use skullstripped intermediary images for SWI and DWI scans
+data_dir = 'data/round2_preprocessing/output/6_ZSCORE_NORMALIZED'
+output_dir = 'data/round2_preprocessing/output/7_REGISTERED'
 log_dir = f'{output_dir}/logfiles'
 num_workers = 4
 
@@ -79,10 +80,83 @@ def save_transforms(tx, output_path):
 #### 2. REGISTRATION ####
 #-----------------------#
 def prop_existing_txs(subject):
-    tx_dir = f'data/preprocessing/output/6b_REGISTERED/{subject}'
-    session = lsdir(tx_dir)[0]
-    scan = [s for s in lsdir(f'{tx_dir}/{session}') if s.endswith('AX_ADC')][0]
+    # Setting up logging
+    log_file = os.path.join(log_dir, f'{subject}-log.txt')
+    logging.basicConfig(filename=log_file, level=logging.INFO, format='%(message)s')
+    begin_time = time.time()
 
+    # File wrangling
+    session = lsdir(f'{tx_dir}/{subject}')[0]
+    current_scans = lsdir(f'{tx_dir}/{subject}/{session}')
+    scan_types = [scan.split('-')[-1] for scan in current_scans]
+    
+    # If there is no AX 3D T1 POST scan, then we can't register the session, since that is the intra-subject template
+    post_path = [s for s in current_scans if s.endswith(intra_subject_template)]
+    if len(post_path) == 0:
+        logging.info(f"Warning: No {intra_subject_template} scan found for {session}, therefore skipping session: {session}")
+        return
+    else:
+        logging.info(f"Starting registration for the session: {session}")
+        post_path = post_path[0]
+
+    # Obtain all relevant scans for the session
+    adc_path = [s for s in current_scans if s.endswith('AX_ADC')][0] # there must be an ADC scan for this fn to have been called, so we can index it safely here
+    dwi_path = [s for s in current_scans if s.endswith('AX_DIFFUSION')]
+    dwi_path = dwi_path[0] if len(dwi_path) > 0 else None
+    flair_path = [s for s in current_scans if s.endswith('SAG_3D_FLAIR')]
+    flair_path = flair_path[0] if len(flair_path) > 0 else None
+    pre_path = [s for s in current_scans if s.endswith('AX_3D_T1_PRE')]
+    pre_path = pre_path[0] if len(pre_path) > 0 else None
+    t2_path = [s for s in current_scans if s.endswith('SAG_3D_T2')]
+    t2_path = t2_path[0] if len(t2_path) > 0 else None
+
+    # Determine which intermediary scan to use
+    dwi_intermediary = None
+    if dwi_path and flair_path:
+        dwi_intermediary = 'SAG_3D_FLAIR'
+    elif dwi_path and pre_path:
+        dwi_intermediary = 'AX_3D_T1_PRE'
+    elif dwi_path and t2_path:
+        dwi_intermediary = 'SAG_3D_T2'
+    else:
+        logging.info(f"Warning: No intermediary scan found for {session}, therefore skipping session: {session}")
+        return
+    intermediary_path = [s for s in current_scans if s.endswith(dwi_intermediary)][0]
+
+    # Read in current ADC scan
+    adc_scan = read_example_mri(data_dir, subject, session, adc_path, ants=True, orientation='IAL')
+
+    # Read in the existing transforms
+    #### PROPOGATION 1: ADC -> dwi_intermediary e.g. SAG 3D FLAIR (via DWI) ####
+    tx1_path = f'{tx_dir}/{subject}/{session}/{dwi_path}/{session}_{dwi_path}_Affine_to_{dwi_intermediary}_transform_tx_0.mat'
+    #### PROPOGATION 2: dwi_intermediary e.g. SAG 3D FLAIR -> AX 3D T1 POST ####
+    tx2_path = f'{tx_dir}/{subject}/{session}/{intermediary_path}/{session}_{intermediary_path}_Affine_to_{intra_subject_template}_transform_tx_0.mat'
+    #### PROPOGATION 3: AX 3D T1 POST -> MNI TEMPLATE ####
+    tx3_path = f'{tx_dir}/{subject}/{session}/{post_path}/{session}_{post_path}_Affine_to_MNI_transform_tx_0.mat'
+
+    # Propogate the transforms onto the new ADC scan
+    logging.info(f"\tPropogating existing transforms onto new ADC scan: {adc_path}")
+    try:
+        propogated_mni_transform = ants.apply_transforms(
+            fixed=mni_template,
+            moving=adc_scan,
+            transformlist=[tx1_path, tx2_path, tx3_path],
+            verbose=False
+        )
+        if not os.path.exists(f'{output_dir}/{subject}/{session}/{adc_path}'): os.makedirs(f'{output_dir}/{subject}/{session}/{adc_path}')
+        propogated_mni_transform.to_file(f'{output_dir}/{subject}/{session}/{adc_path}/{session}_{adc_path}.nii.gz')
+        logging.info(f"\tSuccessfully registered {adc_path}\n")
+    except Exception as e:
+        logging.info(f"\tError: {e}")
+        logging.info(f"\tUnable to register {adc_path}\n")
+    
+    # Log the completion of the registration
+    time_elapsed = time.time() - begin_time
+    logging.info(f"Completed registration for the session: {session}")
+    hours, rem = divmod(time_elapsed, 3600)
+    minutes, seconds = divmod(rem, 60)
+    time_elapsed = "{:0>2}:{:0>2}:{:05.2f}".format(int(hours),int(minutes),seconds)
+    logging.info(f"Elapsed time: {time_elapsed}\n")
 
 def register_subject(subject):
     """
@@ -108,7 +182,8 @@ def register_subject(subject):
     # and 2) because those subjects were segmented with those original registrations, and we definitely don't want to re-segment them
     # So, we will propogate the existing transforms onto the new AX_ADC scans in a separate function
     if subject not in lsdir(skullstrip_dir):
-        return prop_existing_txs(subject)
+        prop_existing_txs(subject)
+        return
     
     # Setting up logging
     log_file = os.path.join(log_dir, f'{subject}-log.txt')
@@ -362,7 +437,7 @@ def main():
     overall_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     bar = '-' * 80
     os.system(f"echo '\n{bar}\n' >> {overall_log_file}")
-    os.system(f"echo 'Running script 6a_parallel_registration_w_propogation.py at {overall_start_time}\n' >> {overall_log_file}")
+    os.system(f"echo 'Running script 7a_parallel_registration_w_propogation.py at {overall_start_time}\n' >> {overall_log_file}")
     os.system(f"echo 'Skull stripping directory used: {skullstrip_dir}' >> {overall_log_file}")
     os.system(f"echo 'Intrasubject template used: {intra_subject_template}' >> {overall_log_file}")
     os.system(f"echo 'Affine template used: {mni_template_path}\n' >> {overall_log_file}")
@@ -395,3 +470,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# %%
