@@ -22,7 +22,7 @@ from tqdm import tqdm
 
 setup()
 
-def view_intensity_normalization(data_dir='data/preprocessing/output', scan_type='AX_3D_T1_POST', subjects_to_plot=None, num_subjects=4, cmap='gray', fig_height=6, orientation='IAL', title='Intensity Normalization', save_fig=False):
+def view_intensity_normalization(data_dir='data/round2_preprocessing/output', scan_type='AX_3D_T1_POST', subjects_to_plot=None, num_subjects=4, cmap='gray', fig_height=6, orientation='IAL', title='Intensity Normalization', save_fig=False, sess='Presurgical'):
     """
     Author: Lawrence Chillrud
     
@@ -46,14 +46,14 @@ def view_intensity_normalization(data_dir='data/preprocessing/output', scan_type
     fig_height : int, optional
         The height of the figure. The default is 6.
     """
-    before_dir = f'{data_dir}/3_N4_BIAS_FIELD_CORRECTED'
-    after_dir = f'{data_dir}/5b_ZSCORE_NORMALIZED'
+    before_dir = f'{data_dir}/4_N4_BIAS_FIELD_CORRECTED'
+    after_dir = f'{data_dir}/6_ZSCORE_NORMALIZED'
     subjects = lsdir(after_dir)
-    subjects = [s for s in subjects if f'{s}_Brainlab' in lsdir(f'{after_dir}/{s}')]
+    subjects = [s for s in subjects if f'{s}_{sess}' in lsdir(f'{after_dir}/{s}')]
 
     if subjects_to_plot is None:
       # pick randomly num_subjects from subjects so long as they have a scan of type scan_type
-      all_scans = [' '.join(lsdir(f'{after_dir}/{subject}/{subject}_Brainlab')) for subject in subjects]
+      all_scans = [' '.join(lsdir(f'{after_dir}/{subject}/{subject}_{sess}')) for subject in subjects]
       subjects = [s for i, s in enumerate(subjects) if scan_type in all_scans[i]]
       subjects_to_plot = sorted(np.random.choice(subjects, num_subjects, replace=False))
     else:
@@ -63,7 +63,7 @@ def view_intensity_normalization(data_dir='data/preprocessing/output', scan_type
     arr_before = []
     arr_after = []
     for i, subject in enumerate(subjects_to_plot):
-      session = f'{subject}_Brainlab'
+      session = f'{subject}_{sess}'
       scans = lsdir(f'{after_dir}/{subject}/{session}')
       scan = [s for s in scans if s.endswith(scan_type)][0]
       before = read_example_mri(before_dir, subject, session, scan, ants=True, orientation=orientation)
@@ -81,7 +81,7 @@ def view_intensity_normalization(data_dir='data/preprocessing/output', scan_type
     fig, axs = plt.subplots(2, num_subjects + 1, figsize=(fig_height*(num_subjects + 1), fig_height*2))
     fig.suptitle(f'{scan_type}: {title} Before vs. After', fontsize=36, y=1.05)
     for i, subject in enumerate(subjects_to_plot):
-      session = f'{subject}_Brainlab'
+      session = f'{subject}_{sess}'
       scans = lsdir(f'{after_dir}/{subject}/{session}')
       scan = [s for s in scans if s.endswith(scan_type)][0]
       before = read_example_mri(before_dir, subject, session, scan, ants=True, orientation=orientation)
@@ -122,9 +122,9 @@ def view_intensity_normalization(data_dir='data/preprocessing/output', scan_type
       plt.show()
     plt.close()
 
-# view_intensity_normalization()
+view_intensity_normalization()
 
 # %% 
-for st in tqdm(['AX_3D_T1_POST', 'AX_3D_T1_PRE', 'AX_ADC', 'AX_DIFFUSION', 'SAG_3D_FLAIR', 'AX_SWI', 'SAG_3D_T2']):
+for st in tqdm(['AX_3D_T1_POST', 'AX_ADC', 'AX_DIFFUSION', 'SAG_3D_FLAIR']):
     view_intensity_normalization(scan_type=st, subjects_to_plot=['105', '110', '111', '115'], title="Z-score Normalization", save_fig=True)
 # %%
