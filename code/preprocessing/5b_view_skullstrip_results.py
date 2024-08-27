@@ -21,7 +21,7 @@ import cv2
 
 setup()
 
-def view_skullstrip_results(data_dir='data/round2_preprocessing/output', scan_type='AX_3D_T1_POST', subjects_to_plot=None, num_subjects=4, cmap='gray', fig_height=6, orientation='RSA', have_ss=False):
+def view_skullstrip_results(data_dir='data/round2_preprocessing/output', scan_type='AX_3D_T1_POST', subjects_to_plot=None, num_subjects=4, cmap='gray', fig_height=6, orientation='RSA', have_ss=True, sess='Presurgical'):
     """
     Author: Lawrence Chillrud
     """
@@ -31,11 +31,11 @@ def view_skullstrip_results(data_dir='data/round2_preprocessing/output', scan_ty
     else:
         after_dir = before_dir
     subjects = lsdir(after_dir)
-    subjects = [s for s in subjects if f'{s}_Brainlab' in lsdir(f'{after_dir}/{s}')]
+    subjects = [s for s in subjects if f'{s}_{sess}' in lsdir(f'{after_dir}/{s}')]
 
     if subjects_to_plot is None:
         # pick randomly num_subjects from subjects so long as they have a scan of type scan_type
-        all_scans = [' '.join(lsdir(f'{after_dir}/{subject}/{subject}_Brainlab')) for subject in subjects]
+        all_scans = [' '.join(lsdir(f'{after_dir}/{subject}/{subject}_{sess}')) for subject in subjects]
         subjects = [s for i, s in enumerate(subjects) if scan_type in all_scans[i]]
         subjects_to_plot = sorted(np.random.choice(subjects, num_subjects, replace=False))
     else:
@@ -44,7 +44,7 @@ def view_skullstrip_results(data_dir='data/round2_preprocessing/output', scan_ty
     fig, axs = plt.subplots(num_subjects, 4, figsize=(fig_height*3, fig_height*num_subjects))
     fig.suptitle(f'{scan_type}: Skull stripping Before vs. After', fontsize=36, y=1)
     for i, subject in enumerate(subjects_to_plot):
-        session = f'{subject}_Brainlab'
+        session = f'{subject}_{sess}'
         scans = lsdir(f'{after_dir}/{subject}/{session}')
         scan = [s for s in scans if s.endswith(scan_type)][0]
         before = read_example_mri(before_dir, subject, session, scan, ants=True, orientation=orientation).numpy()
@@ -90,5 +90,4 @@ def view_skullstrip_results(data_dir='data/round2_preprocessing/output', scan_ty
     plt.show()
 
 view_skullstrip_results()
-inspect_contours()
 # %%
