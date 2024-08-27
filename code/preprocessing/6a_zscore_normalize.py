@@ -122,7 +122,8 @@ for old_adc_scan_dir, old_adc_skullstrip_dir in zip(old_adc_scan_dirs, old_adc_s
     for subject in lsdir(old_adc_scan_dir):
         for session in lsdir(f'{old_adc_scan_dir}/{subject}'):
             for scan in lsdir(f'{old_adc_scan_dir}/{subject}/{session}'):
-                if 'AX_ADC' in scan:
+                scan_of_interest_found = [True for st in global_scan_types if st in scan]
+                if sum(scan_of_interest_found) > 0:
                     cur_input_dir = f'{old_adc_scan_dir}/{subject}/{session}/{scan}'
                     cur_skullstrip_dir = f'{old_adc_skullstrip_dir}/{subject}/{session}/{scan}'
                     cur_output_dir = f'{output_dir}/{subject}/{session}/{scan}'
