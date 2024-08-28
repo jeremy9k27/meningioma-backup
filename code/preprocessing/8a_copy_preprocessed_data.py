@@ -34,8 +34,8 @@ import os
 
 setup()
 
-data_dir = 'data/preprocessing/output/6c_NONLIN_WARP_REGISTERED'
-output_dir = 'data/preprocessing/output/7c_NONLIN_WARP_COMPLETED_PREPROCESSED'
+data_dir = 'data/round2_preprocessing/output/7_REGISTERED'
+output_dir = 'data/round2_preprocessing/output/8_COMPLETED_PREPROCESSED'
 
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)

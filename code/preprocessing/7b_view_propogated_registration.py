@@ -37,13 +37,13 @@ setup()
 #----------------------------#
 #### 1. VIEW REGISTRATION ####
 #----------------------------#
-def view_registration(subject='111', orientation='IAL'):
-    before_dir = f'data/preprocessed_mri_scans/5b_ZSCORE_NORMALIZED/{subject}/{subject}_Brainlab/'
-    after_dir = f'data/preprocessed_mri_scans/6c_NONLIN_WARP_REGISTERED/{subject}/{subject}_Brainlab/'
-    skullstrip_dir = f'data/preprocessed_mri_scans/4_SKULLSTRIPPED/{subject}/{subject}_Brainlab/'
+def view_registration(subject='81', orientation='IAL', sess='Presurgical'):
+    before_dir = f'data/round2_preprocessing/output/6_ZSCORE_NORMALIZED/{subject}/{subject}_{sess}/'
+    after_dir = f'data/round2_preprocessing/output/7_REGISTERED/{subject}/{subject}_{sess}/'
+    skullstrip_dir = f'data/round2_preprocessing/output/5_SKULLSTRIPPED/{subject}/{subject}_{sess}/'
 
     suffix = 'Affine_registration_to_AX_3D_T1_POST'
-    mni_template_path = 'data/preprocessed_mri_scans/6c_NONLIN_WARP_REGISTERED/mni_icbm152_nlin_sym_09a/mni_icbm152_t1_tal_nlin_sym_09a.nii'
+    mni_template_path = 'data/round2_preprocessing/output/7_REGISTERED/mni_icbm152_nlin_sym_09a/mni_icbm152_t1_tal_nlin_sym_09a.nii'
     mni_template = ants.image_read(mni_template_path, reorient=orientation)
 
     scans = lsdir(before_dir)
@@ -71,13 +71,13 @@ def view_registration(subject='111', orientation='IAL'):
     fig, axs = plt.subplots(3, len(reg_scans), figsize=(5*len(reg_scans), 15))
 
     for i, scan in enumerate(reg_scans):
-        before = ants.image_read(f'{before_dir}/{scan}/{subject}_Brainlab_{scan}.nii.gz', reorient=orientation)
+        before = ants.image_read(f'{before_dir}/{scan}/{subject}_{sess}_{scan}.nii.gz', reorient=orientation)
         if 'AX_3D_T1_POST' not in scan:
-            if os.path.exists(f'{after_dir}/{scan}/{subject}_Brainlab_{scan}_{suffix}.nii.gz'):
-                in_between = ants.image_read(f'{after_dir}/{scan}/{subject}_Brainlab_{scan}_{suffix}.nii.gz', reorient=orientation)
+            if os.path.exists(f'{after_dir}/{scan}/{subject}_{sess}_{scan}_{suffix}.nii.gz'):
+                in_between = ants.image_read(f'{after_dir}/{scan}/{subject}_{sess}_{scan}_{suffix}.nii.gz', reorient=orientation)
             else:
                 in_between = None
-        after = ants.image_read(f'{after_dir}/{scan}/{subject}_Brainlab_{scan}.nii.gz', reorient=orientation)
+        after = ants.image_read(f'{after_dir}/{scan}/{subject}_{sess}_{scan}.nii.gz', reorient=orientation)
         
         slice = before.shape[0] // 2
         axs[0, i].imshow(before.numpy()[slice, :, :], cmap='gray')
@@ -112,20 +112,20 @@ def view_registration(subject='111', orientation='IAL'):
     # swi and dwi scans now!
     for scan in swi_dwi_scans:
         cur_scans = [s for s in os.listdir(f'{after_dir}/{scan}') if s.endswith('.nii.gz')]
-        before_path = f'{before_dir}/{scan}/{subject}_Brainlab_{scan}.nii.gz'
+        before_path = f'{before_dir}/{scan}/{subject}_{sess}_{scan}.nii.gz'
         cur1_path = [s for s in cur_scans if 'Affine_registration_to' in s][0]
         cur2_path = [s for s in cur_scans if 'Affine_propogated_registration' in s][0]
-        cur_final = f'{after_dir}/{scan}/{subject}_Brainlab_{scan}.nii.gz'
+        cur_final = f'{after_dir}/{scan}/{subject}_{sess}_{scan}.nii.gz'
 
         reg1_scan_type = cur1_path.split('Affine_registration_to_')[-1]
         reg1_scan_type = reg1_scan_type.split('.nii.gz')[0]
         reg1_scan_path = [s for s in scans if reg1_scan_type in s][0]
-        reg1_path = f'{skullstrip_dir}/{reg1_scan_path}/{subject}_Brainlab_{reg1_scan_path}.nii.gz'
+        reg1_path = f'{skullstrip_dir}/{reg1_scan_path}/{subject}_{sess}_{reg1_scan_path}.nii.gz'
 
-        reg2_path = f'{after_dir}/{reg1_scan_path}/{subject}_Brainlab_{reg1_scan_path}_{suffix}.nii.gz'
+        reg2_path = f'{after_dir}/{reg1_scan_path}/{subject}_{sess}_{reg1_scan_path}_{suffix}.nii.gz'
         
         ax3dt1post_path = [s for s in scans if 'AX_3D_T1_POST' in s][0]
-        reg3_path = f'{after_dir}/{ax3dt1post_path}/{subject}_Brainlab_{ax3dt1post_path}.nii.gz'
+        reg3_path = f'{after_dir}/{ax3dt1post_path}/{subject}_{sess}_{ax3dt1post_path}.nii.gz'
 
         paths_to_plot = [before_path, f'{after_dir}/{scan}/{cur1_path}', f'{after_dir}/{scan}/{cur2_path}', cur_final, reg1_path, reg2_path, reg3_path, mni_template_path]
 
@@ -153,7 +153,7 @@ def view_registration(subject='111', orientation='IAL'):
     fig, axs = plt.subplots(1, len(scans), figsize=(6*len(scans), 7))
     fig.suptitle(f'Subject {subject} Final Registration', fontsize=24, y = 0.95)
     for i, scan in enumerate(scans):
-        final_path = f'{after_dir}/{scan}/{subject}_Brainlab_{scan}.nii.gz'
+        final_path = f'{after_dir}/{scan}/{subject}_{sess}_{scan}.nii.gz'
         final = ants.image_read(final_path, reorient=orientation)
         slice = final.shape[0] // 2
         axs[i].imshow(final.numpy()[slice, :, :], cmap='gray')
