@@ -213,9 +213,35 @@ def register_subject(subject):
         if 'SAG_3D_T2' in scan_types: has_t2 = True
         if 'AX_ADC' in scan_types: has_adc = True
 
-        # If there is no AX 3D T1 POST scan, then we can't register the session, since that is the intra-subject template
+        # If there is no AX 3D T1 POST scan, then there is no intra-subject template, so we must simply register all scans directly to the MNI template
+        #### REGISTRATION 1: ALL SCANS -> MNI TEMPLATE if there is no T1 POST ####
         if not has_post:
-            logging.info(f"Warning: No {intra_subject_template} scan found for {session}, therefore skipping session: {session}")
+            logging.info(f"Warning: No {intra_subject_template} scan found for {session}, therefore registering all scans in the session straight to the MNI template")
+            for scan in current_scans:
+                cur_input_dir = f'{data_dir}/{subject}/{session}/{scan}'
+                cur_output_dir = f'{output_dir}/{subject}/{session}/{scan}'
+                scan_type = scan.split('-')[-1]
+                if not os.path.exists(f'{cur_output_dir}/{session}_{scan}.nii.gz'): 
+                    logging.info(f"\tProcessing: {scan}")
+                    if not os.path.exists(cur_output_dir): os.makedirs(cur_output_dir)
+                    shutil.copy(f'{cur_input_dir}/{session}_{scan}.json', f'{cur_output_dir}/{session}_{scan}.json')
+                    original_mri = read_example_mri(data_dir, subject, session, scan, ants=True, orientation='IAL')
+                    try:
+                        # Register the scan to the MNI template
+                        type_of_transform = 'Affine'
+                        mni_transform = ants.registration(
+                            fixed=mni_template,
+                            moving=original_mri,
+                            type_of_transform=type_of_transform,
+                            verbose=False
+                        )
+                        # Save the registered image
+                        mni_transform['warpedmovout'].to_file(f'{cur_output_dir}/{session}_{scan}.nii.gz')
+                        # Save the actual transforms
+                        save_transforms(mni_transform['fwdtransforms'], f'{cur_output_dir}/{session}_{scan}_{type_of_transform}_to_MNI')
+                    except Exception as e:
+                        logging.info(f"\tError: {e}")
+                        logging.info(f"\tUnable to register {scan}\n")
             continue
         else:
             logging.info(f"Starting registration for the session: {session}")
