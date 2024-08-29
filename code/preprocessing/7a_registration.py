@@ -414,9 +414,8 @@ class Registration:
         """
         Register all the scans in all the sessions for a given subject.
         """
-        # TODO: Implement propagating existing tx files for those subjects from the previous round of preprocessing
         if subject in lsdir(self.prev_round_dir):
-            print(f"Subject {subject} has already been registered. Skipping...")
+            print(f"Subject {subject} should be handled in script 7b, skipping for now...")
             return
                 
         # Set the subject number and reset the session and scan availability data
