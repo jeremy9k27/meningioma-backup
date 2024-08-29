@@ -38,11 +38,11 @@ from ants import image_read
 
 setup()
 
-dir_of_interest = '7c_NONLIN_WARP_COMPLETED_PREPROCESSED'
-segmentation_dir = 'data/8_mni_registered_mixed_segs/'
-seg_paths = [f for f in os.listdir(segmentation_dir) if f.startswith('Segmentation')]
-data_dir = f'data/preprocessing/output/{dir_of_interest}'
-output_dir = f'data/preprocessing/output/THUMBS_{dir_of_interest}'
+dir_of_interest = '8_COMPLETED_PREPROCESSED'
+segmentation_dir = None # 'data/8_mni_registered_mixed_segs/'
+seg_paths = [f for f in os.listdir(segmentation_dir) if f.startswith('Segmentation')] if segmentation_dir is not None else []
+data_dir = f'data/round2_preprocessing/output/{dir_of_interest}'
+output_dir = f'data/round2_preprocessing/output/THUMBS_{dir_of_interest}'
 
 if not os.path.exists(output_dir): os.makedirs(output_dir)
 
@@ -61,7 +61,7 @@ def get_segs_for_subject(sub_no):
 
 # %%
 def visualize_scans(subject='111', orientation='IAL'):
-    master_seg = get_segs_for_subject(subject)
+    master_seg = get_segs_for_subject(subject) if segmentation_dir is not None else None
     for session in lsdir(f'{data_dir}/{subject}'):
         if os.path.exists(f'{output_dir}/{session}.png'): continue
         scans = lsdir(f'{data_dir}/{subject}/{session}')
@@ -76,11 +76,14 @@ def visualize_scans(subject='111', orientation='IAL'):
             if not os.path.exists(final_path): continue
             final = ants.image_read(final_path, reorient=orientation)
             if len(final.shape) > 3: continue
-            slice_content = [(master_seg[i, :, :] != 0).sum() for i in range(master_seg.shape[0])]
-            slice = np.argmax(slice_content)
-            # slice = final.shape[0] // 2
+            if master_seg is not None:
+                slice_content = [(master_seg[i, :, :] != 0).sum() for i in range(master_seg.shape[0])]
+                slice = np.argmax(slice_content)
+            else:
+                slice = final.shape[0] // 2
             axs[i].imshow(final.numpy()[slice, :, :], cmap='gray')
-            axs[i].imshow(master_seg[slice, :, :], alpha=0.25)
+            if master_seg is not None: 
+                axs[i].imshow(master_seg[slice, :, :], alpha=0.25)
             axs[i].set_title(f'{scan}', fontsize=24)
             axs[i].set_xlabel(f'Slice: {slice}/{final.shape[0]} for shape {final.shape}', fontsize=18)
             axs[i].set_xticks([])
