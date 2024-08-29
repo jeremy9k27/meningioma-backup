@@ -1,10 +1,12 @@
 import os
 import ants
-from utils import lsdir
+from utils import setup, lsdir
 import logging
 import shutil
 import time
 from datetime import datetime
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from tqdm import tqdm
 
 class Registration:
     def __init__(self):
@@ -13,7 +15,7 @@ class Registration:
         """
 
         # Global directories
-        self.tx_dir = f'data/preprocessing/output/6b_REGISTERED'
+        self.prev_round_dir = f'data/preprocessing/output/6b_REGISTERED'
         self.skullstrip_dir = 'data/round2_preprocessing/output/5_SKULLSTRIPPED' # set this to None if you don't want to use skullstripped intermediary images for SWI and DWI scans
         self.data_dir = 'data/round2_preprocessing/output/6_ZSCORE_NORMALIZED'
         self.output_dir = 'data/round2_preprocessing/output/7_REGISTERED'
@@ -60,7 +62,7 @@ class Registration:
         self.main_logger.info(f"{self.bar}")
         self.main_logger.info(f"Initializing Registration at: {self.start_date}")
         self.main_logger.info(f"Registration settings:")
-        self.main_logger.info(f"\ttx_dir: {self.tx_dir}")
+        self.main_logger.info(f"\tprev_round_dir: {self.prev_round_dir}")
         self.main_logger.info(f"\tskullstrip_dir: {self.skullstrip_dir}")
         self.main_logger.info(f"\tdata_dir: {self.data_dir}")
         self.main_logger.info(f"\toutput_dir: {self.output_dir}")
@@ -91,7 +93,7 @@ class Registration:
         }
         self.scan_paths = None
     
-    def end_logging(self):
+    def _end_logging(self):
         # Calculating the time elapsed
         end_time = time.time()
         end_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -185,6 +187,10 @@ class Registration:
         scan_path_full = f'{self.data_dir}/{self.subject}/{self.session}/{scan_path}/{self.session}_{scan_path}.nii.gz'
         cur_output_dir = f'{self.output_dir}/{self.subject}/{self.session}/{scan_path}'
         if not os.path.exists(cur_output_dir): os.makedirs(cur_output_dir)
+        shutil.copy(
+            f'{self.data_dir}/{self.subject}/{self.session}/{scan_path}/{self.session}_{scan_path}.json',
+            f'{cur_output_dir}/{self.session}_{scan_path}.json'
+        )
         cur_output_path = f'{cur_output_dir}/{self.session}_{scan_path}.nii.gz'
 
         # Setting up the logger for the current registration
@@ -404,10 +410,15 @@ class Registration:
         # Reset the session information once we are finished
         self._reset_session_info()
 
-    def register_subject(self, subject):
+    def _register_subject(self, subject):
         """
         Register all the scans in all the sessions for a given subject.
         """
+        # TODO: Implement propagating existing tx files for those subjects from the previous round of preprocessing
+        if subject in lsdir(self.prev_round_dir):
+            print(f"Subject {subject} has already been registered. Skipping...")
+            return
+        
         # Set the subject number and reset the session and scan availability data
         self.subject = subject
         self._reset_session_info()
@@ -417,3 +428,21 @@ class Registration:
             self._register_session(session)
         
         self.subject = None
+    
+    def register_all(self, num_workers=4):
+        subjects = lsdir(self.data_dir)
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            # Create a list of futures
+            futures = [executor.submit(self._register_subject, subject) for subject in subjects]
+            
+            # Initialize tqdm progress bar
+            with tqdm(total=len(futures)) as progress_bar:
+                for _ in as_completed(futures):
+                    progress_bar.update(1)
+        
+        self._end_logging()
+
+if __name__ == '__main__':
+    setup()
+    reg = Registration()
+    reg.register_all()
