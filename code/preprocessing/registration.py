@@ -5,7 +5,6 @@ import logging
 import shutil
 import time
 from datetime import datetime
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 
 class Registration:
@@ -45,7 +44,7 @@ class Registration:
         self.main_logger = logging.getLogger('main_logger')
         self.main_logger.setLevel(logging.INFO)
         self.main_handler = logging.FileHandler(f'{self.output_dir}/log.txt')
-        self.main_handler(logging.INFO)
+        self.main_handler.setLevel(logging.INFO)
         self.main_formatter = logging.Formatter('%(message)s')
         self.main_handler.setFormatter(self.main_formatter)
         self.main_logger.addHandler(self.main_handler)
@@ -153,6 +152,7 @@ class Registration:
         moving_name = moving_path.split('/')[-1].split('.')[0].split('-')[-1]
         tx_path = f'{tx_dir}/TX-{moving_name}_to_{fixed_name}_tx' # e.g. 'TX-AX_3D_T1_POST_to_MNI_tx' or 'TX-SAG_3D_FLAIR_to_AX_3D_T1_POST_tx'
         self._save_transforms(result['fwdtransforms'], tx_path)
+        return result['warpedmovout']
     
     def _propagate_register(self, moving_im, tx_list, output_path):
         result = ants.apply_transforms(fixed=self.mni_template_ants, moving=moving_im, transformlist=tx_list, verbose=False)
@@ -272,7 +272,7 @@ class Registration:
                         self.current_logger.info(f"\tStep 2/2: Propagating available transforms onto {scan_path}...")
                         self.current_logger.info(f"\t\tAvailable transforms: {available_txs}")
                         self._propagate_register(
-                            moving_im=step1['warpedmovout'],
+                            moving_im=step1,
                             tx_list=available_txs,
                             output_path=cur_output_path
                         )
@@ -302,7 +302,7 @@ class Registration:
                         self.current_logger.info(f"\tStep 2/2: Propagating available transforms onto {scan_path}...")
                         self.current_logger.info(f"\t\tAvailable transforms: {available_txs}")
                         self._propagate_register(
-                            moving_im=step1['warpedmovout'],
+                            moving_im=step1,
                             tx_list=available_txs,
                             output_path=cur_output_path
                         )
@@ -322,7 +322,7 @@ class Registration:
                         self.current_logger.info(f"\tStep 2/2: Propagating intra subject template {self.intra_subject_template} registration to MNI template onto {scan_path}...")
                         self.current_logger.info(f"\t\tAvailable transforms: {available_txs}")
                         self._propagate_register(
-                            moving_im=step1['warpedmovout'],
+                            moving_im=step1,
                             tx_list=available_txs,
                             output_path=cur_output_path
                         )
@@ -356,7 +356,7 @@ class Registration:
                     self.current_logger.info(f"\tStep 2/2: Propagating intra subject template {self.intra_subject_template} registration to MNI template onto {scan_path}...")
                     self.current_logger.info(f"\t\tAvailable transforms: {available_txs}")
                     self._propagate_register(
-                        moving_im=step1['warpedmovout'], 
+                        moving_im=step1, 
                         tx_list=available_txs,
                         output_path=cur_output_path
                     )
@@ -372,7 +372,7 @@ class Registration:
                     self.current_logger.info(f"\tRegistration successfully completed.")
 
         except Exception as e:
-            self.current_logger.info(f"Error in registration: {e}")
+            self.current_logger.info(f"\tError in registration: {e}")
             self.num_failed_registrations += 1
             self.failed_registrations.append(f"{self.session}/{scan_path}")
 
@@ -418,7 +418,7 @@ class Registration:
         if subject in lsdir(self.prev_round_dir):
             print(f"Subject {subject} has already been registered. Skipping...")
             return
-        
+                
         # Set the subject number and reset the session and scan availability data
         self.subject = subject
         self._reset_session_info()
@@ -429,17 +429,10 @@ class Registration:
         
         self.subject = None
     
-    def register_all(self, num_workers=4):
+    def register_all(self):
         subjects = lsdir(self.data_dir)
-        with ProcessPoolExecutor(max_workers=num_workers) as executor:
-            # Create a list of futures
-            futures = [executor.submit(self._register_subject, subject) for subject in subjects]
-            
-            # Initialize tqdm progress bar
-            with tqdm(total=len(futures)) as progress_bar:
-                for _ in as_completed(futures):
-                    progress_bar.update(1)
-        
+        for s in tqdm(subjects, desc='Registering subjects', total=len(subjects), dynamic_ncols=True, smoothing=0.5):
+            self._register_subject(s)
         self._end_logging()
 
 if __name__ == '__main__':
