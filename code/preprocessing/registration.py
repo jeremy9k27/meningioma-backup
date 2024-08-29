@@ -31,7 +31,7 @@ class Registration:
         self.mni_template_path = f'{self.output_dir}/{self.mni_template_dir}/mni_icbm152_t1_tal_nlin_sym_09a.nii'
         if not os.path.exists(self.mni_template_path):
             os.system(f"cd {self.output_dir} && wget {self.mni_template} && unzip {self.mni_template_zip} && rm {self.mni_template_zip} && cd ../../../../")
-        self.mni_template = ants.image_read(self.mni_template_path, reorient='IAL')
+        self.mni_template_ants = ants.image_read(self.mni_template_path, reorient='IAL')
 
         # Defining the kind of registration
         self.tx_type = 'Affine'
@@ -88,7 +88,6 @@ class Registration:
             'AX_SWI': False,
             'AX_ADC': False,
             'AX_2D_T2': False,
-            'SAG_3D_T2': False,
         }
         self.scan_paths = None
     
@@ -134,18 +133,59 @@ class Registration:
         return scan_path[0]
     
     def _save_transforms(self, tx, output_path):
-        try:
-            for i, t in enumerate(tx):
-                suffix = '.'.join(t.split('.')[1:])
-                self.current_logger.info(f"Attempting to save transform {i + 1}/{len(tx)} as {output_path}_transform_tx_{i}.{suffix}...")
-                shutil.copy(t, f'{output_path}_transform_tx_{i}.{suffix}')
-                self.current_logger.info(f"Success!")
-        except Exception as e:
-            self.current_logger.info(f"Error in saving transforms: {e}")
+        for i, t in enumerate(tx):
+            suffix = '.'.join(t.split('.')[1:])
+            shutil.copy(t, f'{output_path}_{i}.{suffix}')
 
+    def _direct_register(self, fixed_path, moving_path, output_path):
+        """Registers the moving path to the fixed path, saving the result to output_path and the transforms via _save_transforms."""
+        fixed_im = ants.image_read(fixed_path, reorient='IAL')
+        moving_im = ants.image_read(moving_path, reorient='IAL')
+        result = ants.registration(fixed=fixed_im, moving=moving_im, type_of_transform=self.tx_type, verbose=False)
+        result['warpedmovout'].to_file(output_path)
+        tx_dir = '/'.join(output_path.split('/')[:-1])
+        if 'mni' in fixed_path:
+            fixed_name = "MNI"
+        else:
+            fixed_name = fixed_path.split('/')[-1].split('.')[0].split('-')[-1]
+        moving_name = moving_path.split('/')[-1].split('.')[0].split('-')[-1]
+        tx_path = f'{tx_dir}/TX-{moving_name}_to_{fixed_name}_tx' # e.g. 'TX-AX_3D_T1_POST_to_MNI_tx' or 'TX-SAG_3D_FLAIR_to_AX_3D_T1_POST_tx'
+        self._save_transforms(result['fwdtransforms'], tx_path)
+    
+    def _propagate_register(self, moving_im, tx_list, output_path):
+        result = ants.apply_transforms(fixed=self.mni_template_ants, moving=moving_im, transformlist=tx_list, verbose=False)
+        result.to_file(output_path)
+    
+    def _get_intermediary_scan(self):
+        """Get the intermediary scan path, if it exists."""
+        if self.scan_available['SAG_3D_FLAIR']:
+            return self._get_scan_path('SAG_3D_FLAIR')
+        elif self.scan_available['AX_3D_T1_PRE']:
+            return self._get_scan_path('AX_3D_T1_PRE')
+        elif self.scan_available['SAG_3D_T2']:
+            return self._get_scan_path('SAG_3D_T2')
+        else:
+            return None
+    
+    def _unravel_available_txs(self, scan_type):
+        next_scan = scan_type
+        all_tx_files = []
+        while next_scan != 'MNI':
+            scan_path = self._get_scan_path(next_scan)
+            cur_dir = f'{self.output_dir}/{self.subject}/{self.session}/{scan_path}'
+            cur_files = os.listdir(cur_dir)
+            tx_files = [f"{cur_dir}/{cf}" for cf in cur_files if cf.startswith('TX-')]
+            all_tx_files.extend(tx_files)
+            next_scan = tx_files[0].split('/')[-1].split('_to_')[-1].split('_tx_')[0]
+        return all_tx_files
+    
     def _register_scan(self, scan_type):
         # Obtain the current scan path to be registered
-        scan_path = self._get_scan_path(scan_type)
+        scan_path = self._get_scan_path(scan_type) # e.g. '10-AX_3D_T1_POST' or # '3-AX_DIFFUSION'
+        scan_path_full = f'{self.data_dir}/{self.subject}/{self.session}/{scan_path}/{self.session}_{scan_path}.nii.gz'
+        cur_output_dir = f'{self.output_dir}/{self.subject}/{self.session}/{scan_path}'
+        if not os.path.exists(cur_output_dir): os.makedirs(cur_output_dir)
+        cur_output_path = f'{cur_output_dir}/{self.session}_{scan_path}.nii.gz'
 
         # Setting up the logger for the current registration
         self.current_logger = logging.getLogger(f'{self.session}_{scan_path}_logger')
@@ -165,26 +205,170 @@ class Registration:
         self.current_logger.info(f"\tScan type: {scan_type}")
 
         #### REGISTRATION ####
-        if scan_type == self.intra_subject_template:
-            # In this case, we want to register scan_path to the MNI template directly
-            raise NotImplementedError("Direct registration to MNI template not yet implemented.")
-        elif scan_type in self.scans_needing_intermediary:
-            # In this case, we want to: 
-            # 1) register scan_path to the appropriate intermediary scan (if available), then;
-            # 2) propagate the intermediary scan's registration to the intra_subject_template onto scan_path, and finally;
-            # 3) propagate the intra_subject_template's registration to the MNI template onto scan_path.
-            # Should any of these steps be missing, we simply skip the step and continue to the next step.
-            # We also need to pay special attention to the case that this is an ADC scan, in which case step 1) is replaced
-            # with the following:
-            # 1*) Propagate the registration of the DWI scan to the intermediary/intra_subject_template/mni template 
-            #     (whichever is available) onto the ADC scan. 
-            raise NotImplementedError("Registration using intermediary not yet implemented.")
-        else:
-            # In this case, we want to:
-            # 1) register scan_path to the intra_subject_template directly, then;
-            # 2) propagate the intra_subject_template's registration to the MNI template onto scan_path.
-            # Should we be missing the intra_subject_template, we simply register directly to the MNI template.
-            raise NotImplementedError("Not yet implemented.")
+        try:
+            if scan_type == self.intra_subject_template:
+                # In this case, we want to register scan_path to the MNI template directly
+                self.current_logger.info(f"\tDirect registering {scan_path} to the MNI template...")
+                
+                # Read in intra subject template and check it's spacing
+                moving_im = ants.image_read(f"{scan_path_full}", reorient='IAL')
+                if moving_im.spacing != (1.0, 1.0, 1.0):
+                    self.current_logger.info(f"\tWarning: {scan_path} does not have 1x1x1mm spacing, but rather {moving_im.spacing} spacing. Proceeding w/registration...")
+                    # moving_im = ants.resample_image(moving_im, (1.0, 1.0, 1.0), use_voxels=True)
+                
+                # 1/1: Register the scan to the MNI template directly (the transforms are saved in _direct_register)
+                self._direct_register(
+                    fixed_path=self.mni_template_path, 
+                    moving_path=scan_path_full, 
+                    output_path=cur_output_path
+                )
+                self.current_logger.info(f"\tRegistration successfully completed.")
+
+            elif scan_type in self.scans_needing_intermediary:
+                # In this case, we want to: 
+                # 1) register scan_path to the appropriate intermediary scan (if available), then;
+                # 2) propagate the intermediary scan's registration to the intra_subject_template onto scan_path, and finally;
+                # 3) propagate the intra_subject_template's registration to the MNI template onto scan_path.
+                # Should any of these steps be missing, we simply skip the step and continue to the next step.
+                # We also need to pay special attention to the case that this is an ADC scan, in which case step 1) is replaced
+                # with the following:
+                # 1*) Propagate the registration of the DWI scan to the intermediary/intra_subject_template/mni template 
+                #     (whichever is available) onto the ADC scan. 
+                # Finally, we want to use the skullstripped directory for these registrations, if available.
+                intermediary_origin_dir = self.skullstrip_dir if self.skullstrip_dir else self.data_dir
+                if scan_type == 'AX_ADC':
+                    # Obtain intermediary scan incase we need it
+                    int_scan = self._get_intermediary_scan()
+
+                    # Ideally we have the AX_DIFFUSION scan available and can just propagate it's entire registration history onto the ADC.
+                    if self.scan_available['AX_DIFFUSION']: 
+                        # 1*/1: propagate the AX_DIFFUSION scan's entire registration history to the ADC scan
+                        self.current_logger.info(f"\tStep 1/1: Propagating AX_DIFFUSION scan's entire registration history to the AX_ADC scan...")
+                        available_txs = self._unravel_available_txs('AX_DIFFUSION')
+                        self.current_logger.info(f"\t\tAvailable transforms: {available_txs}")
+                        self._propagate_register(
+                            moving_im=ants.image_read(scan_path_full, reorient='IAL'), 
+                            tx_list=available_txs,
+                            output_path=cur_output_path
+                        )
+                        self.current_logger.info(f"\tRegistration successfully completed.")
+                    elif int_scan:
+                        # 1/2: register scan_path to the appropriate intermediary scan
+                        self.current_logger.info(f"\tStep 1/2: Registering {scan_path} to the intermediary scan {int_scan}...")
+                        int_scan_path_full = f'{intermediary_origin_dir}/{self.subject}/{self.session}/{int_scan}/{self.session}_{int_scan}.nii.gz'
+                        step1 = self._direct_register(
+                            fixed_path=int_scan_path_full,
+                            moving_path=scan_path_full,
+                            output_path=f'{cur_output_dir}/{self.session}_{scan_path}_direct_reg_to_{int_scan}_.nii.gz'
+                        )
+                        # 2/2: unravel which existing transforms are available to propagate
+                        available_txs = self._unravel_available_txs(int_scan.split('-')[-1])
+                        self.current_logger.info(f"\tStep 2/2: Propagating available transforms onto {scan_path}...")
+                        self.current_logger.info(f"\t\tAvailable transforms: {available_txs}")
+                        self._propagate_register(
+                            moving_im=step1['warpedmovout'],
+                            tx_list=available_txs,
+                            output_path=cur_output_path
+                        )
+                        self.current_logger.info(f"\tRegistration successfully completed.")
+                    else:
+                        # 1/1: register scan_path to the MNI template directly
+                        self.current_logger.info(f"\tStep 1/1: Neither the intra subject template {self.intra_subject_template} nor an appropriate intermediary scan is available, therefore registering {scan_path} directly to MNI template...")
+                        self._direct_register(
+                            fixed_path=self.mni_template_path, 
+                            moving_path=scan_path_full, 
+                            output_path=cur_output_path
+                        )
+                        self.current_logger.info(f"\tRegistration successfully completed.")
+                else:
+                    intermediary_scan_path = self._get_intermediary_scan()
+                    if intermediary_scan_path:
+                        # 1/2: register scan_path to the appropriate intermediary scan
+                        self.current_logger.info(f"\tStep 1/2: Registering {scan_path} to the intermediary scan {intermediary_scan_path}...")
+                        intermediary_scan_path_full = f'{intermediary_origin_dir}/{self.subject}/{self.session}/{intermediary_scan_path}/{self.session}_{intermediary_scan_path}.nii.gz'
+                        step1 = self._direct_register(
+                            fixed_path=intermediary_scan_path_full,
+                            moving_path=scan_path_full,
+                            output_path=f'{cur_output_dir}/{self.session}_{scan_path}_direct_reg_to_{intermediary_scan_path}_.nii.gz'
+                        )
+                        # 2/2: unravel which existing transforms are available to propagate
+                        available_txs = self._unravel_available_txs(scan_type=intermediary_scan_path.split('-')[-1])
+                        self.current_logger.info(f"\tStep 2/2: Propagating available transforms onto {scan_path}...")
+                        self.current_logger.info(f"\t\tAvailable transforms: {available_txs}")
+                        self._propagate_register(
+                            moving_im=step1['warpedmovout'],
+                            tx_list=available_txs,
+                            output_path=cur_output_path
+                        )
+                        self.current_logger.info(f"\tRegistration successfully completed.")
+                    elif self.scan_available[self.intra_subject_template]:
+                        # 1/2: register scan_path to the intra_subject_template directly
+                        self.current_logger.info(f"\tStep 1/2: Registering {scan_path} to the intra subject template {self.intra_subject_template}...")
+                        intra_subject_template_path = self._get_scan_path(self.intra_subject_template)
+                        intra_subject_template_path_full = f'{intermediary_origin_dir}/{self.subject}/{self.session}/{intra_subject_template_path}/{self.session}_{intra_subject_template_path}.nii.gz'
+                        step1 = self._direct_register(
+                            fixed_path=intra_subject_template_path_full,
+                            moving_path=scan_path_full,
+                            output_path=f'{cur_output_dir}/{self.session}_{scan_path}_direct_reg_to_{self.intra_subject_template}_.nii.gz'
+                        )
+                        # 2/2: propagate the intra_subject_template's registration to the MNI template onto scan_path
+                        available_txs = self._unravel_available_txs(self.intra_subject_template)
+                        self.current_logger.info(f"\tStep 2/2: Propagating intra subject template {self.intra_subject_template} registration to MNI template onto {scan_path}...")
+                        self.current_logger.info(f"\t\tAvailable transforms: {available_txs}")
+                        self._propagate_register(
+                            moving_im=step1['warpedmovout'],
+                            tx_list=available_txs,
+                            output_path=cur_output_path
+                        )
+                        self.current_logger.info(f"\tRegistration successfully completed.")
+                    else:
+                        # 1/1: register scan_path to the MNI template directly
+                        self.current_logger.info(f"\tStep 1/1: Neither the intra subject template {self.intra_subject_template} nor an appropriate intermediary scan is available, therefore registering {scan_path} directly to MNI template...")
+                        self._direct_register(
+                            fixed_path=self.mni_template_path, 
+                            moving_path=scan_path_full, 
+                            output_path=cur_output_path
+                        )
+                        self.current_logger.info(f"\tRegistration successfully completed.")
+            else:
+                # In this case, we want to:
+                # 1) register scan_path to the intra_subject_template directly, then;
+                # 2) propagate the intra_subject_template's registration to the MNI template onto scan_path.
+                # Should we be missing the intra_subject_template, we simply register directly to the MNI template.
+                if self.scan_available[self.intra_subject_template]:
+                    # 1/2: register scan_path to the intra_subject_template directly
+                    self.current_logger.info(f"\tStep 1/2: Registering {scan_path} to the intra subject template {self.intra_subject_template}...")
+                    intra_subject_template_path = self._get_scan_path(self.intra_subject_template)
+                    intra_subject_template_path_full = f'{self.data_dir}/{self.subject}/{self.session}/{intra_subject_template_path}/{self.session}_{intra_subject_template_path}.nii.gz'
+                    step1 = self._direct_register(
+                        fixed_path=intra_subject_template_path_full,
+                        moving_path=scan_path_full,
+                        output_path=f'{cur_output_dir}/{self.session}_{scan_path}_direct_reg_to_{self.intra_subject_template}_.nii.gz'
+                    )
+                    # 2/2: propagate the intra_subject_template's registration to the MNI template onto scan_path
+                    available_txs = self._unravel_available_txs(self.intra_subject_template)
+                    self.current_logger.info(f"\tStep 2/2: Propagating intra subject template {self.intra_subject_template} registration to MNI template onto {scan_path}...")
+                    self.current_logger.info(f"\t\tAvailable transforms: {available_txs}")
+                    self._propagate_register(
+                        moving_im=step1['warpedmovout'], 
+                        tx_list=available_txs,
+                        output_path=cur_output_path
+                    )
+                    self.current_logger.info(f"\tRegistration successfully completed.")
+                else:
+                    # 1/1: register scan_path to the MNI template directly
+                    self.current_logger.info(f"\tStep 1/1: Intra subject template {self.intra_subject_template} not available, therefore registering {scan_path} directly to MNI template...")
+                    self._direct_register(
+                        fixed_path=self.mni_template_path, 
+                        moving_path=scan_path_full, 
+                        output_path=cur_output_path
+                    )
+                    self.current_logger.info(f"\tRegistration successfully completed.")
+
+        except Exception as e:
+            self.current_logger.info(f"Error in registration: {e}")
+            self.num_failed_registrations += 1
+            self.failed_registrations.append(f"{self.session}/{scan_path}")
 
         # When finished, reset the current logger
         end_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
