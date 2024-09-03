@@ -24,7 +24,7 @@ from utils import setup, lsdir
 from collections import Counter
 setup()
 
-data_dir = 'data/round2_preprocessing/output/3_RENAMED_SCANS' # 'data/preprocessing/output/2_NIFTI'
+data_dir = 'data/round2_preprocessing/output/3_RENAMED_SCANS' # 'data/round2_preprocessing/output/3_RENAMED_SCANS' # 'data/preprocessing/output/2_NIFTI'
 subjects = lsdir(data_dir)
 all_scan_types = []
 for s in subjects:
@@ -32,6 +32,7 @@ for s in subjects:
     for sess in sessions:
         scans = lsdir(f'{data_dir}/{s}/{sess}')
         scan_types = [scan.split('-')[-1] for scan in scans]
+        # assert ('AX_DIFFUSION' in scan_types) == ('AX_ADC' in scan_types), f'{sess}: {scan_types}'
         all_scan_types.extend(scan_types)
         print(f'{sess}: {Counter(scan_types)}')
 

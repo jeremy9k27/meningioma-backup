@@ -38,7 +38,7 @@ from ants import image_read
 
 setup()
 
-dir_of_interest = '8_COMPLETED_PREPROCESSED'
+dir_of_interest = '7b_UPDATED_ADC_REGISTERED'
 segmentation_dir = None # 'data/8_mni_registered_mixed_segs/'
 seg_paths = [f for f in os.listdir(segmentation_dir) if f.startswith('Segmentation')] if segmentation_dir is not None else []
 data_dir = f'data/round2_preprocessing/output/{dir_of_interest}'
