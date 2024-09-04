@@ -12,19 +12,21 @@ import time
 from datetime import datetime
 import numpy as np
 import joblib
-from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.svm import SVC
 from sklearn.gaussian_process.kernels import RBF, Matern, RationalQuadratic, DotProduct
 
 setup()
 
-output_folder = 'results/Nonlin_LOO_GP_radiomics8_7-28-24'
-model = GaussianProcessClassifier
+output_folder = 'results/Nonlin_LOO_SVM_T1-post-radiomics8_9-4-24'
+model = SVC
 fixed_params = {
-    'n_restarts_optimizer': 10,
-    'max_iter_predict': 500
+    'C': 1,
+    'gamma': 'auto',
+    'class_weight': 'balanced',
+    'probability': True
 }
 param_to_sweep = 'kernel'
-sweep_values = [1.0 * RBF(1.0), 1.0 * Matern(nu=0.5), 1.0 * Matern(nu=1.5), 1.0 * Matern(nu=2.5), 1.0 * RationalQuadratic(), 1.0 * DotProduct()]
+sweep_values = ['linear', 'poly', 'rbf', 'sigmoid']
 
 tasks = ['Chr22q', 'MethylationSubgroup', 'Chr1p'] # ['Chr22q', 'MethylationSubgroup', 'Chr1p']
 
@@ -42,7 +44,8 @@ for task in tasks:
         prediction_task=task, 
         output_dir=output_folder,
         use_smote=True,
-        feat_file="data/radiomics/features8_smoothed/features_wide.csv" # f"data/collage_sparse/windowsize-9_binsize-64_summary_22nansfilled_pruned.csv" # "data/combined_feats/5-15-24_radiomics_pruned-collage_features.csv"
+        feat_file="data/radiomics/features8_smoothed/features_wide.csv", # f"data/collage_sparse/windowsize-9_binsize-64_summary_22nansfilled_pruned.csv" # "data/combined_feats/5-15-24_radiomics_pruned-collage_features.csv"
+        feat_select=lambda x: x.startswith('Mod-AX_3D_T1_POST')
     )
 
     if task == 'MethylationSubgroup':
