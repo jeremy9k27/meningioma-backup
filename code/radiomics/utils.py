@@ -294,7 +294,7 @@ def prep_data_for_loocv(features_file='data/radiomics/features6/features_wide.cs
         X = pd.DataFrame(scaler_obj.fit_transform(X), columns=X.columns)
     
     if feat_select is not None:
-        feats_of_interest = [col for col in X.columns if feat_select(col)]
+        feats_of_interest = [col for col in X.columns if col.startswith(feat_select)]
         X = X[feats_of_interest]
     # X['subject_ID'] = X.apply(create_hash, axis=1)
     return X, y
