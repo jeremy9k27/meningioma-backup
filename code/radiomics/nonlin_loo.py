@@ -10,10 +10,8 @@ from preprocessing.utils import setup
 from NonlinearLOOExp import NonlinearLOOExp
 import time
 from datetime import datetime
-import numpy as np
 import joblib
 from sklearn.svm import SVC
-from sklearn.gaussian_process.kernels import RBF, Matern, RationalQuadratic, DotProduct
 
 setup()
 
@@ -45,7 +43,7 @@ for task in tasks:
         output_dir=output_folder,
         use_smote=True,
         feat_file="data/radiomics/features8_smoothed/features_wide.csv", # f"data/collage_sparse/windowsize-9_binsize-64_summary_22nansfilled_pruned.csv" # "data/combined_feats/5-15-24_radiomics_pruned-collage_features.csv"
-        feat_select='Mod-AX_3D_T1_POST'
+        feat_select='T1'
     )
 
     if task == 'MethylationSubgroup':
