@@ -16,7 +16,7 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 class LOOExperiment:
-    def __init__(self, prediction_task, lambdas=[0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15], use_smote=True, scaler='Standard', seed=0, output_dir='data/radiomics_loo', save=True, feat_file="data/radiomics/features6/features_wide.csv"):
+    def __init__(self, prediction_task, lambdas=[0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15], use_smote=True, scaler='Standard', seed=0, output_dir='data/radiomics_loo', save=True, feat_file="data/radiomics/features6/features_wide.csv", feat_select=None):
         """
         Initialize the experiment with the provided settings. 
         
@@ -40,6 +40,7 @@ class LOOExperiment:
 
         # Setting we don't typically need to change...
         self.feat_file = feat_file # File location with the radiomics features in wide format
+        self.feat_select = feat_select
         self.lr_params = {
             'penalty': 'l1', 
             'class_weight': 'balanced', 
@@ -67,7 +68,8 @@ class LOOExperiment:
         self.X, self.y = prep_data_for_loocv(
             features_file=self.feat_file, 
             outcome=self.prediction_task, 
-            scaler_obj=self.scaler_obj
+            scaler_obj=self.scaler_obj,
+            feat_select=self.feat_select
         )
 
         # Remove constant features

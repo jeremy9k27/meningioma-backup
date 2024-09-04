@@ -186,4 +186,39 @@ noise_counts = noise_stats_df.groupby(['rsquared', 'num_real_nonzeros']).size().
 # %%
 relplot(stats2_counts, title='Regressing CoLlAGe features on PyRadiomics features')
 relplot(noise_counts, title='Regressing random noise on PyRadiomics features')
+
+# %%
+# Here I want to perform the regression analysis within the pyradiomics dataset, comparing T1 features with the DWI, ADC, and FLAIR features
+t1_df = radiomics_df.filter(like='T1-')
+dwi_df = radiomics_df.filter(like='DWI-')
+adc_df = radiomics_df.filter(like='ADC-')
+flair_df = radiomics_df.filter(like='FLAIR-')
+
+outcomes_list = [dwi_df, adc_df, flair_df]
+outcomes_names = ['DWI', 'ADC', 'FLAIR']
+
+# for outcome_df, name in zip(outcomes_list, outcomes_names):
+outcome_df = dwi_df
+name = 'DWI'
+rsquareds, num_nonzeros, num_real_nonzeros = regression_analysis(predictors_df=t1_df, outcomes_df=outcome_df, alpha=0.1, nonzero_threshold=0.99)
+stats_df = pd.DataFrame({
+    'feature': outcome_df.columns,
+    'rsquared': np.array(rsquareds).round(2),
+    'num_nonzeros': num_nonzeros,
+    'num_real_nonzeros': num_real_nonzeros
+}).sort_values(by=['rsquared', 'num_real_nonzeros'], ascending=[False, True])
+stats_counts = stats_df.groupby(['rsquared', 'num_real_nonzeros']).size().reset_index(name='counts')
+relplot(stats_counts, title=f'Regressing {name} features on T1 post features')
+# %%
+stats_df[stats_df['feature'] == 'DWI-1-firstorder_Kurtosis']
+
+# %%
+stats_df[stats_df['feature'] == 'DWI-22-firstorder_Kurtosis']
+
+# %%
+stats_df[stats_df['feature'] == 'ADC-22-firstorder_10Percentile']
+
+# %%
+stats_df[stats_df['feature'] == 'DWI-22-firstorder_10Percentile']
+
 # %%
