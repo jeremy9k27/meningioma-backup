@@ -296,6 +296,9 @@ def prep_data_for_loocv(features_file='data/radiomics/features6/features_wide.cs
     if feat_select is not None:
         feats_of_interest = [col for col in X.columns if col.startswith(feat_select)]
         X = X[feats_of_interest]
+    
+    # drop NAWM features
+    X = X.drop(columns=[col for col in X.columns if '-7-' in col])
     # X['subject_ID'] = X.apply(create_hash, axis=1)
     return X, y
 
