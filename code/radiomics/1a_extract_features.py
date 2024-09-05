@@ -38,9 +38,9 @@ import SimpleITK as sitk
 # Set up the directories and paths, define global constants
 setup()
 MRI_DIR = 'data/preprocessing/output/7b_COMPLETED_PREPROCESSED'
-SEGS_DIR = 'data/ComparisonSegs_NotVirginia/'
+SEGS_DIR = 'data/smooth_segs_9-4-24/'
 SEGS_PATHS = [f for f in os.listdir(SEGS_DIR) if f.startswith('Segmentation')]
-OUTPUT_DIR = 'data/radiomics/comparison_NOTvirginia'
+OUTPUT_DIR = 'data/radiomics/features9_smoothed'
 if not os.path.exists(OUTPUT_DIR): os.makedirs(OUTPUT_DIR)
 OUTPUT_FILE = f'{OUTPUT_DIR}/features.csv'
 LOG_FILE = f'{OUTPUT_DIR}/log.txt'
@@ -130,7 +130,7 @@ def extract_features(s, e):
         mask = np.zeros_like(all_seg_arrays[0])
         for seg_arr in all_seg_arrays:
             if lab == 22:
-                mask = np.logical_or(mask > 0, seg_arr > 0)
+                mask = np.logical_or(mask > 0, np.logical_and(seg_arr > 0, seg_arr != 7)) # we want to exclude the NAWM label = 7
                 mask = mask.astype(int) * 22
             elif lab == 13:
                 mask = np.logical_or(mask == 13, seg_arr == 1)
