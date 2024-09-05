@@ -16,7 +16,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import logging
 
 class NonlinearLOOExp:
-    def __init__(self, model, fixed_model_params, param_to_sweep, sweep_values, prediction_task, use_smote=True, scaler='Standard', seed=0, output_dir='data/radiomics_loo', save=True, feat_file="data/radiomics/features6/features_wide.csv"):
+    def __init__(self, model, fixed_model_params, param_to_sweep, sweep_values, prediction_task, use_smote=True, scaler='Standard', seed=0, output_dir='data/radiomics_loo', save=True, feat_file="data/radiomics/features6/features_wide.csv", feat_select=None):
         """
         Initialize the experiment with the provided settings. 
         
@@ -44,6 +44,7 @@ class NonlinearLOOExp:
 
         # Setting we don't typically need to change...
         self.feat_file = feat_file # File location with the radiomics features in wide format
+        self.feat_select = feat_select
 
         # Automatically generated settings
         if self.prediction_task == 'MethylationSubgroup':
@@ -63,7 +64,8 @@ class NonlinearLOOExp:
         self.X, self.y = prep_data_for_loocv(
             features_file=self.feat_file, 
             outcome=self.prediction_task, 
-            scaler_obj=self.scaler_obj
+            scaler_obj=self.scaler_obj,
+            feat_select=self.feat_select
         )
 
         # Remove constant features
@@ -84,6 +86,7 @@ class NonlinearLOOExp:
         logging.info(f'Seed: {self.seed}')
         logging.info(f'Output Directory: {self.output_dir}')
         logging.info(f'Feature File: {self.feat_file}')
+        logging.info(f'Feature Selection: {self.feat_select}')
         logging.info(bar)
 
     def _plot_confusion_matrix(self, y_true, y_pred):

@@ -277,7 +277,7 @@ def get_data(features_file='data/radiomics/features6/features_wide.csv', labels_
 
     return X_train_df, y_train, train_subject_nums, X_test_df, y_test, test_subject_nums
 
-def prep_data_for_loocv(features_file='data/radiomics/features6/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', scaler_obj=None):
+def prep_data_for_loocv(features_file='data/radiomics/features6/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', scaler_obj=None, feat_select=None):
     # read in features and labels, merge
     features = pd.read_csv(features_file)
     labels = pd.read_csv(labels_file)
@@ -293,6 +293,12 @@ def prep_data_for_loocv(features_file='data/radiomics/features6/features_wide.cs
     if scaler_obj is not None:
         X = pd.DataFrame(scaler_obj.fit_transform(X), columns=X.columns)
     
+    if feat_select is not None:
+        feats_of_interest = [col for col in X.columns if col.startswith(feat_select)]
+        X = X[feats_of_interest]
+    
+    # drop NAWM features
+    X = X.drop(columns=[col for col in X.columns if '-7-' in col])
     # X['subject_ID'] = X.apply(create_hash, axis=1)
     return X, y
 
