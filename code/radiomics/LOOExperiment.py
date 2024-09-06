@@ -65,7 +65,7 @@ class LOOExperiment:
             self.scaler_obj = None
 
         # Reading in the data
-        self.X, self.y = prep_data_for_loocv(
+        self.X, self.y, self.sub_nos = prep_data_for_loocv(
             features_file=self.feat_file, 
             outcome=self.prediction_task, 
             scaler_obj=self.scaler_obj,
@@ -510,6 +510,7 @@ class LOOExperiment:
         y_train = self.y[train_idx]
         X_test = self.X.iloc[test_idx]
         y_test = self.y[test_idx]
+        test_sub_no = self.sub_nos[test_idx]
 
         if self.use_smote:
             X_train, y_train = SMOTE(random_state=self.seed).fit_resample(X_train, y_train)
@@ -530,7 +531,7 @@ class LOOExperiment:
         else:
             train_metrics = self.get_multiclass_metrics(train_probs, train_preds, label_binarize(y_train[:len(self.X)-1], classes=np.arange(self.n_classes)))
 
-        return (coefs, intercepts, test_probs, test_preds, y_test, train_metrics)
+        return (coefs, intercepts, test_probs, test_preds, y_test, train_metrics, test_sub_no)
 
     def process_lambda(self, lmda):
         results = []
@@ -546,7 +547,7 @@ class LOOExperiment:
                 results.append(future.result())
 
         # Unpack results
-        coefs, intercepts, test_probs, test_preds, y_test, train_metrics = zip(*results)
+        coefs, intercepts, test_probs, test_preds, y_test, train_metrics, test_sub_nos = zip(*results)
 
         return {
             'lambda': lmda,
@@ -555,7 +556,8 @@ class LOOExperiment:
             'test_probs': np.stack(test_probs).squeeze(),
             'test_preds': np.stack(test_preds).squeeze(),
             'y_test': np.stack(y_test).squeeze(),
-            'train_metrics': pd.DataFrame(list(train_metrics))
+            'train_metrics': pd.DataFrame(list(train_metrics)),
+            'test_sub_nos': np.stack(test_sub_nos).squeeze()
         }
 
     def par_loo_model(self, pmetric='AUC'):
@@ -566,6 +568,7 @@ class LOOExperiment:
         y_tests_by_lambda = {}
         train_metrics_by_lambda = {}
         test_metrics_by_lambda = {}
+        test_sub_nos_by_lambda = {}
         
         # Use ProcessPoolExecutor to parallelize the loop over lambdas
         with ProcessPoolExecutor(max_workers=8) as executor:
@@ -579,6 +582,7 @@ class LOOExperiment:
                 test_preds = result['test_preds']
                 y_tests_by_lambda[lmda] = result['y_test']
                 train_metrics_by_lambda[lmda] = result['train_metrics']
+                test_sub_nos_by_lambda[lmda] = result['test_sub_nos']
                 if self.n_classes == 2:
                     test_metrics = pd.DataFrame(self.get_binary_metrics(result['test_probs'], test_preds, result['y_test']), index=[0])
                 else:
@@ -600,6 +604,13 @@ class LOOExperiment:
         self.intercept = intercepts_by_lambda[self.best_lambda]
         self.test_probs = test_probs_by_lambda[self.best_lambda]
         self.y_test = y_tests_by_lambda[self.best_lambda]
+        self.test_sub_nos = test_sub_nos_by_lambda[self.best_lambda]
+
+        pd.DataFrame({
+            'Subject Number': self.test_sub_nos, 
+            'Label': self.y_test, 
+            'Prediction': np.argmax(self.test_probs, axis=1)}
+        ).sort_values(by='Subject Number').to_csv(f'{self.output_dir}/best_model_preds.csv', index=False)
 
         self.nonzero_coefs = self.plot_coefs()
         if self.n_classes > 2:

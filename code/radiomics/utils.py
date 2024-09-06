@@ -299,8 +299,12 @@ def prep_data_for_loocv(features_file='data/radiomics/features6/features_wide.cs
     
     # drop NAWM features
     X = X.drop(columns=[col for col in X.columns if '-7-' in col])
+
+    # Subject IDs
+    sub_nos = data['Subject Number'].values
+
     # X['subject_ID'] = X.apply(create_hash, axis=1)
-    return X, y
+    return X, y, sub_nos
 
 def prep_data_for_pca(features_file='data/radiomics/features6/features_wide.csv', labels_file='data/labels/MeningiomaBiomarkerData.csv', outcome='MethylationSubgroup', scaler_obj=None):
     # read in features and labels, merge
