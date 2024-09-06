@@ -20,7 +20,7 @@ data_dir = 'results/classic_loo_smoothed_radiomics_fine_5-15-24/Chr1p' # 'result
 coef_df = pd.read_csv(f'{data_dir}/Chr1p_coefs.csv')
 
 # %%
-X, y = prep_data_for_loocv(
+X, y, sub_nos = prep_data_for_loocv(
     features_file='data/radiomics/features8_smoothed/features_wide.csv', # 'data/4c_radiomics_adjusted_w_medians_and_mads/features_wide.csv', 
     outcome='Chr1p', 
     scaler_obj=StandardScaler()

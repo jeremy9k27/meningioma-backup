@@ -61,7 +61,7 @@ class NonlinearLOOExp:
             self.scaler_obj = None
 
         # Reading in the data
-        self.X, self.y = prep_data_for_loocv(
+        self.X, self.y, self.sub_nos = prep_data_for_loocv(
             features_file=self.feat_file, 
             outcome=self.prediction_task, 
             scaler_obj=self.scaler_obj,
