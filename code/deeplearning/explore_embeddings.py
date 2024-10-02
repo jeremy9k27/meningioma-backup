@@ -19,6 +19,8 @@ import h5py
 import ants
 import seaborn as sns
 import plotly.express as px
+import warnings
+warnings.filterwarnings("ignore")
 
 setup()
 
@@ -227,7 +229,7 @@ def tsne_analysis(X, y, perplexities=[2, 5, 10, 20, 30], n_iters=[250, 1000, 250
     return results
 
 print("Step 4/4: TSNE Analysis...")
-for pooling in tqdm(pooling_types, total=len(pooling_types)):
+for pooling in tqdm(pooling_types, total=len(pooling_types), desc='Pooling Types', colour='red'):
     flattened_embeddings = np.load(f'data/tsne/t1post_{pooling}_pooled_embeddings.npy')
     results_df = tsne_analysis(flattened_embeddings, labels)
     results_df.to_csv(f'data/tsne/t1post_{pooling}_pooled_TSNE_ANALYSIS_embeddings.csv', index=False)
@@ -238,6 +240,8 @@ for pooling in tqdm(pooling_types, total=len(pooling_types)):
         g.figure.set_size_inches(16, 16)
         g.figure.suptitle(f'TSNE {pooling} Pooled Embeddings: {key}', y=1.02)
         g.savefig(f'data/tsne/TSNE_ANALYSIS_{pooling}_pooled_embeddings_{key}.png')
+
+print("\nDone with script!\n")
 
 #### 3D TSNE ####
 # tsne = TSNE(n_components=3, perplexity=30, max_iter=1000, random_state=42)
