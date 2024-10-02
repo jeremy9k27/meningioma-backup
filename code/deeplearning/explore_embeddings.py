@@ -122,7 +122,7 @@ for ep in tqdm(embedding_paths, total=len(embedding_paths)):
     embedding_flat = embedding.flatten()
     flattened_embeddings.append(embedding_flat)
     for key in labels.keys():
-        label = labels_df[labels_df['Subject Number'] == subject][key].values[0][0]
+        label = labels_df[labels_df['Subject Number'] == subject][key].values[0]
         labels[key].append(label)
 
 flattened_embeddings = np.stack(flattened_embeddings)
