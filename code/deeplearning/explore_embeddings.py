@@ -36,7 +36,7 @@ for subject in os.listdir(data_dir):
                     if f.endswith('.h5'):
                         embedding_paths.append(f'{data_dir}/{subject}/{session}/{scan}/{f}')
 
-print("Found", len(embedding_paths), "embeddings")
+print("Found", len(embedding_paths), "T1 POST embeddings")
 
 # %%
 def get_segs(subject, roi=22):
@@ -141,16 +141,6 @@ def pool_cancerous_slices(embedding_path, pool_type='avg'):
             weights = cancerous_pixels_per_slice[cancerous_slices]
             return np.average(embedding, axis=0, weights=weights)
 
-# %%
-# Populate labels
-labels_df = pd.read_csv('data/labels/MeningiomaBiomarkerData.csv')
-labels = {'MethylationSubgroup': [], 'Chr1p': [], 'Chr22q': []}
-for ep in tqdm(embedding_paths, total=len(embedding_paths)):
-    subject = int(ep.split('/')[-4])
-    for key in labels.keys():
-        label = labels_df[labels_df['Subject Number'] == subject][key].values[0]
-        labels[key].append(label)
-
 # %% 
 # Populate embeddings
 def get_embeddings(pooling, save=False):
@@ -160,14 +150,68 @@ def get_embeddings(pooling, save=False):
         embedding_flat = embedding.flatten()
         flattened_embeddings.append(embedding_flat)
     flattened_embeddings = np.stack(flattened_embeddings)
-    if save: np.save(f'data/tsne/t1post_pooled_embeddings_{pooling}.npy', flattened_embeddings)
+    if save: np.save(f'data/tsne/t1post_{pooling}_pooled_embeddings.npy', flattened_embeddings)
     return flattened_embeddings
 
-for pt in ['avg', 'max', 'min', 'median', 'sum', 'weighted_avg']:
+pooling_types = ['avg', 'max', 'min', 'median', 'sum', 'weighted_avg']
+print(f"Step 1/4: Getting the embeddings for each of the following pooling types: {pooling_types}")
+
+for pt in tqdm(pooling_types, total=len(pooling_types)):
     _ = get_embeddings(pt, save=True)
 
-exit()
+print("\nDone!\n")
+
 # %%
+# Populate labels
+print("Step 2/4: Populating labels...")
+labels_df = pd.read_csv('data/labels/MeningiomaBiomarkerData.csv')
+labels = {'MethylationSubgroup': [], 'Chr1p': [], 'Chr22q': []}
+
+for ep in tqdm(embedding_paths, total=len(embedding_paths)):
+    subject = int(ep.split('/')[-4])
+    for key in labels.keys():
+        label = labels_df[labels_df['Subject Number'] == subject][key].values[0]
+        labels[key].append(label)
+
+print("\nDone!\n")
+
+# %%
+print("Step 3/4: PCA, UMAP Analyses...")
+for pooling in tqdm(pooling_types, total=len(pooling_types)):
+    flattened_embeddings = np.load(f'data/tsne/t1post_{pooling}_pooled_embeddings.npy')
+
+    #### PCA ####
+    pca = PCA(n_components=2, random_state=42)
+    # pca_results = pca.fit_transform(StandardScaler().fit_transform(flattened_embeddings))
+    pca_results = pca.fit_transform(flattened_embeddings)
+
+    var = pca.explained_variance_ratio_
+
+    pca_df = pd.DataFrame(pca_results, columns=['PC1', 'PC2'])
+    for key in labels.keys():
+        pca_df.loc[:, key] = np.stack(labels[key][:len(pca_results)])
+
+    for key in labels.keys():
+        g = sns.relplot(data=pca_df, x='PC1', y='PC2', hue=key, palette='tab10')
+        g.figure.suptitle(f'PCA {pooling} Pooled Embeddings: {key}\nVar Exp: PC1={round(var[0], 2)}, PC2={round(var[1], 2)}', y=1.02)
+        g.savefig(f'data/tsne/PCA_{pooling}_pooled_embeddings_{key}.png')
+
+    #### UMAP ####
+    umap_results = umap.UMAP(n_components=2, random_state=42).fit_transform(flattened_embeddings)
+
+    umap_df = pd.DataFrame(umap_results, columns=['x', 'y'])
+    for key in labels.keys():
+        umap_df.loc[:, key] = np.stack(labels[key][:len(umap_results)])
+
+    for key in labels.keys():
+        g = sns.relplot(data=umap_df, x='x', y='y', hue=key, palette='tab10')
+        g.figure.suptitle(f'UMAP {pooling} Pooled Embeddings: {key}', y=1.02)
+        g.savefig(f'data/tsne/UMAP_{pooling}_pooled_embeddings_{key}.png')
+
+print("\nDone!\n")
+
+# %%
+#### TSNE ANALYSIS ####
 def tsne_analysis(X, y, perplexities=[2, 5, 10, 20, 30], n_iters=[250, 1000, 2500, 5000, 7500], random_state=42):
     results = pd.DataFrame()
     for perp in tqdm(perplexities, total=len(perplexities), colour='green', position=0, leave=True):
@@ -182,72 +226,42 @@ def tsne_analysis(X, y, perplexities=[2, 5, 10, 20, 30], n_iters=[250, 1000, 250
             results = pd.concat([results, df], axis=0)
     return results
 
-results_df = tsne_analysis(flattened_embeddings, labels)
-results_df.to_csv('data/tsne/cancerous_slice_embeddings.csv', index=False)
-
-# Plot and save results
-results_df = pd.read_csv('data/tsne/cancerous_slice_embeddings.csv')
-
-for key in labels.keys():
-    g = sns.relplot(data=results_df, x='x', y='y', hue=key, palette='tab10', col='perplexity', row='n_iter', facet_kws={'sharex': False, 'sharey': False})
-    g.figure.set_size_inches(16, 16)
-    g.figure.suptitle(f'Cancerous Slice Embeddings: {key}', y=1.02)
-    g.savefig(f'data/tsne/cancerous_slice_embeddings_{key}.png')
-
-# %%
+print("Step 4/4: TSNE Analysis...")
+for pooling in tqdm(pooling_types, total=len(pooling_types)):
+    flattened_embeddings = np.load(f'data/tsne/t1post_{pooling}_pooled_embeddings.npy')
+    results_df = tsne_analysis(flattened_embeddings, labels)
+    results_df.to_csv(f'data/tsne/t1post_{pooling}_pooled_TSNE_ANALYSIS_embeddings.csv', index=False)
+    # Plot and save results
+    results_df = pd.read_csv(f'data/tsne/t1post_{pooling}_pooled_TSNE_ANALYSIS_embeddings.csv')
+    for key in labels.keys():
+        g = sns.relplot(data=results_df, x='x', y='y', hue=key, palette='tab10', col='perplexity', row='n_iter', facet_kws={'sharex': False, 'sharey': False})
+        g.figure.set_size_inches(16, 16)
+        g.figure.suptitle(f'TSNE {pooling} Pooled Embeddings: {key}', y=1.02)
+        g.savefig(f'data/tsne/TSNE_ANALYSIS_{pooling}_pooled_embeddings_{key}.png')
 
 #### 3D TSNE ####
-tsne = TSNE(n_components=3, perplexity=30, max_iter=1000, random_state=42)
-tsne_results = tsne.fit_transform(flattened_embeddings)
+# tsne = TSNE(n_components=3, perplexity=30, max_iter=1000, random_state=42)
+# tsne_results = tsne.fit_transform(flattened_embeddings)
 
-tsne_df = pd.DataFrame(tsne_results, columns=['x', 'y', 'z'])
-for key in labels.keys():
-    tsne_df.loc[:, key] = np.stack(labels[key][:len(tsne_results)])
+# tsne_df = pd.DataFrame(tsne_results, columns=['x', 'y', 'z'])
+# for key in labels.keys():
+#     tsne_df.loc[:, key] = np.stack(labels[key][:len(tsne_results)])
 
-# Set Seaborn style
-sns.set_style("whitegrid")
+# # Set Seaborn style
+# sns.set_style("whitegrid")
 
-for key in labels.keys():
-    fig = px.scatter_3d(tsne_df, x='x', y='y', z='z', color=key, opacity=0.7)
-    fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
-    fig.show()
-
-# %%
-tsne = TSNE(n_components=2, perplexity=20, max_iter=1000, random_state=1)
-tsne_results = tsne.fit_transform(flattened_embeddings)
-
-tsne_df = pd.DataFrame(tsne_results, columns=['x', 'y'])
-for key in labels.keys():
-    tsne_df.loc[:, key] = np.stack(labels[key][:len(tsne_results)])
-
-for key in labels.keys():
-    sns.relplot(data=tsne_df, x='x', y='y', hue=key, palette='tab10')
+# for key in labels.keys():
+#     fig = px.scatter_3d(tsne_df, x='x', y='y', z='z', color=key, opacity=0.7)
+#     fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+#     fig.show()
 
 # %%
-#### PCA ####
-pca = PCA(n_components=2)
-# pca_results = pca.fit_transform(StandardScaler().fit_transform(flattened_embeddings))
-pca_results = pca.fit_transform(flattened_embeddings)
+# tsne = TSNE(n_components=2, perplexity=20, max_iter=1000, random_state=1)
+# tsne_results = tsne.fit_transform(flattened_embeddings)
 
-print("PCA Var Exp: ", pca.explained_variance_ratio_)
+# tsne_df = pd.DataFrame(tsne_results, columns=['x', 'y'])
+# for key in labels.keys():
+#     tsne_df.loc[:, key] = np.stack(labels[key][:len(tsne_results)])
 
-pca_df = pd.DataFrame(pca_results, columns=['x', 'y'])
-for key in labels.keys():
-    pca_df.loc[:, key] = np.stack(labels[key][:len(pca_results)])
-
-for key in labels.keys():
-    sns.relplot(data=pca_df, x='x', y='y', hue=key, palette='tab10')
-
-# %%
-#### UMAP ####
-
-umap_results = umap.UMAP(n_components=2, random_state=42).fit_transform(flattened_embeddings)
-
-umap_df = pd.DataFrame(umap_results, columns=['x', 'y'])
-for key in labels.keys():
-    umap_df.loc[:, key] = np.stack(labels[key][:len(umap_results)])
-
-for key in labels.keys():
-    sns.relplot(data=umap_df, x='x', y='y', hue=key, palette='tab10')
-
-# %%
+# for key in labels.keys():
+#     sns.relplot(data=tsne_df, x='x', y='y', hue=key, palette='tab10')
