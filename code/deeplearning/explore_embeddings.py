@@ -11,7 +11,10 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 import umap
+from PIL import Image
 import matplotlib.pyplot as plt
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+import matplotlib.patches as mpatches
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
@@ -28,6 +31,7 @@ data_dir = 'data/preprocessing/output/7b_COMPLETED_PREPROCESSED_SUBSET'
 segs_dir = 'data/smooth_segs_9-4-24/'
 segs_paths = [f for f in os.listdir(segs_dir) if f.startswith('Segmentation')]
 
+# %%
 embedding_paths = []
 for subject in os.listdir(data_dir):
     for session in os.listdir(f'{data_dir}/{subject}'):
@@ -269,3 +273,106 @@ print("\nDone with script!\n")
 
 # for key in labels.keys():
 #     sns.relplot(data=tsne_df, x='x', y='y', hue=key, palette='tab10')
+
+# %%
+def plot_embeddings_w_thumbs(biomarker, pooling, dim_red='pca', precomputed_space=None):
+    
+    # Build up list of thumbnail paths, labels to plot
+    def get_thumbs_and_labs(scan_types_of_interest=['AX_3D_T1_POST']):
+        '''Loops thru data_dir and returns thumbnail paths, labels for the specified biomarker and scan types of interest'''
+        paths = []
+        labels = []
+
+        # Read in labels for each subject
+        labels_df = pd.read_csv('data/labels/MeningiomaBiomarkerData.csv')
+
+        # Loop thru all subjects and retrieve thumbnails, labels for the specified biomarker, scan types
+        for subject in os.listdir(data_dir):
+            for session in os.listdir(f'{data_dir}/{subject}'):
+                for scan in os.listdir(f'{data_dir}/{subject}/{session}'):
+                    st = scan.split('-')[-1]
+                    if st in scan_types_of_interest:
+                        for f in os.listdir(f'{data_dir}/{subject}/{session}/{scan}'):
+                            if f.endswith(f'{biomarker}.png'):
+                                # Append thumbnail
+                                paths.append(f'{data_dir}/{subject}/{session}/{scan}/{f}')
+                                label = labels_df[labels_df['Subject Number'] == int(subject)][biomarker].values[0]
+                                labels.append(label)
+
+        return paths, labels
+
+    thumbnail_paths, labels = get_thumbs_and_labs()
+
+    # We only want to plot the embeddings for which we have labels (?)
+    idxs_w_labels = np.where(~np.isnan(labels))[0]
+    thumbnail_paths = [thumbnail_paths[i] for i in idxs_w_labels]
+
+    # Load embeddings for the specified pooling type
+    flattened_embeddings = np.load(f'data/tsne/t1post_{pooling}_pooled_embeddings.npy')[idxs_w_labels]
+
+    # Being plot
+    fig, ax = plt.subplots(figsize=(20, 20))
+
+    if precomputed_space is not None:
+        x, y = precomputed_space
+        subtitle = ''
+    else:
+        if dim_red == 'pca':
+            pca = PCA(n_components=2, random_state=42)
+            pca_results = pca.fit_transform(flattened_embeddings)
+            x = pca_results[:, 0]
+            y = pca_results[:, 1]
+            var = pca.explained_variance_ratio_
+
+            subtitle = f'\nVar Exp: PC1={np.round(var[0], 2)}, PC2={np.round(var[1], 2)}'
+            ax.set_xlabel('PC1', fontsize=24)
+            ax.set_ylabel('PC2', fontsize=24)
+            
+        elif dim_red == 'umap':
+            umap_results = umap.UMAP(n_components=2, random_state=42).fit_transform(flattened_embeddings)
+            x = umap_results[:, 0]
+            y = umap_results[:, 1]
+
+            subtitle = ''
+            ax.set_xlabel('UMAP1', fontsize=24)
+            ax.set_ylabel('UMAP2', fontsize=24)
+       
+    # Begin plot
+    ax.scatter(x, y)
+
+    # Plot thumbnails
+    def get_image(path):
+        '''Returns an OffsetImage object for the given path, cropped and zoomed to specifically fit the meningioma thumbnails made in preprocessing script 8c'''
+        img = Image.open(path)
+        img = img.crop((160, 45, 495, 438))
+        return OffsetImage(img, zoom=0.20)
+
+    for x0, y0, path in zip(x, y, thumbnail_paths):
+        ab = AnnotationBbox(get_image(path), (x0, y0), frameon=False)
+        ax.add_artist(ab)
+
+    # Add legend
+    if biomarker != 'MethylationSubgroup':
+        patch0 = mpatches.Patch(color='tab:blue', label='Intact')
+        patch1 = mpatches.Patch(color='tab:orange', label='Lost')
+        ax.legend(handles=[patch0, patch1], loc='upper right', fontsize=24)
+    else:
+        patch0 = mpatches.Patch(color='tab:blue', label='Merlin Intact')
+        patch1 = mpatches.Patch(color='tab:orange', label='Immune Enriched')
+        patch2 = mpatches.Patch(color='tab:green', label='Hypermetabolic')
+        ax.legend(handles=[patch0, patch1, patch2], loc='upper right', fontsize=24)
+
+    # Set title
+
+    ax.set_title(f'Algo: {dim_red.upper()}, Pooling: {pooling.capitalize()}, Labels: {biomarker}{subtitle}', fontsize=36)
+    plt.show()
+
+    return x, y
+
+pca_x, pca_y = plot_embeddings_w_thumbs('Chr22q', 'weighted_avg', 'pca')
+# %%
+pca_x, pca_y = plot_embeddings_w_thumbs('Chr22q', 'weighted_avg', 'pca', (pca_x, pca_y))
+# %%
+umap_x, umap_y = plot_embeddings_w_thumbs('Chr22q', 'weighted_avg', 'umap')
+
+# %%
