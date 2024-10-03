@@ -275,7 +275,7 @@ print("\nDone with script!\n")
 #     sns.relplot(data=tsne_df, x='x', y='y', hue=key, palette='tab10')
 
 # %%
-def plot_embeddings_w_thumbs(biomarker, pooling, dim_red='pca', precomputed_space=None):
+def plot_embeddings_w_thumbs(biomarker, pooling, dim_red='pca', precomputed_space=None, legend_loc='lower right'):
     
     # Build up list of thumbnail paths, labels to plot
     def get_thumbs_and_labs(scan_types_of_interest=['AX_3D_T1_POST']):
@@ -303,12 +303,12 @@ def plot_embeddings_w_thumbs(biomarker, pooling, dim_red='pca', precomputed_spac
 
     thumbnail_paths, labels = get_thumbs_and_labs()
 
-    # We only want to plot the embeddings for which we have labels (?)
+    # Load embeddings for the specified pooling type
+    flattened_embeddings = np.load(f'data/tsne/t1post_{pooling}_pooled_embeddings.npy')
+
+    # We only want to plot the embeddings for which we have labels
     idxs_w_labels = np.where(~np.isnan(labels))[0]
     thumbnail_paths = [thumbnail_paths[i] for i in idxs_w_labels]
-
-    # Load embeddings for the specified pooling type
-    flattened_embeddings = np.load(f'data/tsne/t1post_{pooling}_pooled_embeddings.npy')[idxs_w_labels]
 
     # Being plot
     fig, ax = plt.subplots(figsize=(20, 20))
@@ -323,8 +323,7 @@ def plot_embeddings_w_thumbs(biomarker, pooling, dim_red='pca', precomputed_spac
             x = pca_results[:, 0]
             y = pca_results[:, 1]
             var = pca.explained_variance_ratio_
-
-            subtitle = f'\nVar Exp: PC1={np.round(var[0], 2)}, PC2={np.round(var[1], 2)}'
+            subtitle = '\nVar Exp: PC1={:.1f}%, PC2={:.1f}%'.format(var[0]*100, var[1]*100)
             ax.set_xlabel('PC1', fontsize=24)
             ax.set_ylabel('PC2', fontsize=24)
             
@@ -336,7 +335,11 @@ def plot_embeddings_w_thumbs(biomarker, pooling, dim_red='pca', precomputed_spac
             subtitle = ''
             ax.set_xlabel('UMAP1', fontsize=24)
             ax.set_ylabel('UMAP2', fontsize=24)
-       
+
+        # We only want to plot the embeddings for which we have labels
+        x = x[idxs_w_labels]
+        y = y[idxs_w_labels]
+
     # Begin plot
     ax.scatter(x, y)
 
@@ -355,12 +358,12 @@ def plot_embeddings_w_thumbs(biomarker, pooling, dim_red='pca', precomputed_spac
     if biomarker != 'MethylationSubgroup':
         patch0 = mpatches.Patch(color='tab:blue', label='Intact')
         patch1 = mpatches.Patch(color='tab:orange', label='Lost')
-        ax.legend(handles=[patch0, patch1], loc='upper right', fontsize=24)
+        ax.legend(handles=[patch0, patch1], loc=legend_loc, fontsize=24)
     else:
         patch0 = mpatches.Patch(color='tab:blue', label='Merlin Intact')
         patch1 = mpatches.Patch(color='tab:orange', label='Immune Enriched')
         patch2 = mpatches.Patch(color='tab:green', label='Hypermetabolic')
-        ax.legend(handles=[patch0, patch1, patch2], loc='upper right', fontsize=24)
+        ax.legend(handles=[patch0, patch1, patch2], loc=legend_loc, fontsize=24)
 
     # Set title
 
@@ -369,10 +372,18 @@ def plot_embeddings_w_thumbs(biomarker, pooling, dim_red='pca', precomputed_spac
 
     return x, y
 
-pca_x, pca_y = plot_embeddings_w_thumbs('Chr22q', 'weighted_avg', 'pca')
 # %%
-pca_x, pca_y = plot_embeddings_w_thumbs('Chr22q', 'weighted_avg', 'pca', (pca_x, pca_y))
+
+pca_x, pca_y = plot_embeddings_w_thumbs('Chr22q', 'weighted_avg', 'pca')
+# pca_x, pca_y = plot_embeddings_w_thumbs('Chr22q', 'weighted_avg', 'pca', precomputed_space = (pca_x, pca_y))
 # %%
 umap_x, umap_y = plot_embeddings_w_thumbs('Chr22q', 'weighted_avg', 'umap')
 
+# %%
+umap_x, umap_y = plot_embeddings_w_thumbs('MethylationSubgroup', 'weighted_avg', 'umap')
+
+# %%
+pooling_types = ['avg', 'max', 'min', 'median', 'sum', 'weighted_avg']
+for pt in pooling_types:
+    _, _ = plot_embeddings_w_thumbs('Chr22q', pt, 'umap')
 # %%
