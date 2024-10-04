@@ -115,17 +115,24 @@ def read_embedding(embedding_path):
     with h5py.File(embedding_path, 'r') as f:
         return f['embedding'][:]
 
-def read_cancerous_slice(embedding_path):
+def read_cancerous_slice(embedding_path, use_raw_slice=False):
     metadata = embedding_path.split('/')
     subject = metadata[-4]
     seg = get_segs(subject, roi=22)
     cancerous_pixels_per_slice = np.sum(seg, axis=(1, 2))
     cancerous_slice = np.argmax(cancerous_pixels_per_slice)
-    with h5py.File(embedding_path, 'r') as f:
-        return f['embedding'][cancerous_slice, :, :, :]
+    if use_raw_slice:
+        raw_path = '/'.join(metadata[:-1]) + '/' + [f for f in os.listdir('/'.join(metadata[:-1])) if f.endswith('.nii.gz')][0]
+        raw_scan = ants.image_read(raw_path, reorient='IAL').numpy()
+        return raw_scan[cancerous_slice, :, :]
+    else:
+        with h5py.File(embedding_path, 'r') as f:
+            return f['embedding'][cancerous_slice, :, :, :]
 
 def pool_cancerous_slices(embedding_path, pool_type='avg'):
-    assert pool_type in ['avg', 'max', 'min', 'median', 'sum', 'weighted_avg'], "Invalid pooling type, must be one of ['avg', 'max', 'min', 'median', 'sum', 'weighted_avg']"
+    assert pool_type in ['avg', 'max', 'min', 'median', 'sum', 'weighted_avg', 'raw', 'most'], "Invalid pooling type, must be one of ['avg', 'max', 'min', 'median', 'sum', 'weighted_avg', 'raw', 'most']"
+    if pool_type == 'raw': return read_cancerous_slice(embedding_path, use_raw_slice=True)
+    if pool_type == 'most': return read_cancerous_slice(embedding_path)
     metadata = embedding_path.split('/')
     subject = metadata[-4]
     seg = get_segs(subject, roi=22)
@@ -159,7 +166,7 @@ def get_embeddings(pooling, save=False):
     if save: np.save(f'data/tsne/t1post_{pooling}_pooled_embeddings.npy', flattened_embeddings)
     return flattened_embeddings
 
-pooling_types = ['avg', 'max', 'min', 'median', 'sum', 'weighted_avg']
+pooling_types = ['raw'] # ['avg', 'max', 'min', 'median', 'sum', 'weighted_avg', 'raw', 'most']
 print(f"Step 1/4: Getting the embeddings for each of the following pooling types: {pooling_types}")
 
 for pt in tqdm(pooling_types, total=len(pooling_types)):
@@ -335,6 +342,15 @@ def plot_embeddings_w_thumbs(biomarker, pooling, dim_red='pca', precomputed_spac
             subtitle = ''
             ax.set_xlabel('UMAP1', fontsize=24)
             ax.set_ylabel('UMAP2', fontsize=24)
+        elif dim_red == 'tsne':
+            tsne = TSNE(n_components=2, perplexity=20, max_iter=1000, random_state=42)
+            tsne_results = tsne.fit_transform(flattened_embeddings)
+            x = tsne_results[:, 0]
+            y = tsne_results[:, 1]
+
+            subtitle = ''
+            ax.set_xlabel('TSNE1', fontsize=24)
+            ax.set_ylabel('TSNE2', fontsize=24)
 
         # We only want to plot the embeddings for which we have labels
         x = x[idxs_w_labels]
@@ -383,7 +399,7 @@ umap_x, umap_y = plot_embeddings_w_thumbs('Chr22q', 'weighted_avg', 'umap')
 umap_x, umap_y = plot_embeddings_w_thumbs('MethylationSubgroup', 'weighted_avg', 'umap')
 
 # %%
-pooling_types = ['avg', 'max', 'min', 'median', 'sum', 'weighted_avg']
+pooling_types = ['raw', 'weighted_avg'] # ['avg', 'max', 'min', 'median', 'sum', 'weighted_avg']
 for pt in pooling_types:
-    _, _ = plot_embeddings_w_thumbs('Chr22q', pt, 'umap')
+    _, _ = plot_embeddings_w_thumbs('MethylationSubgroup', pt, 'umap')
 # %%
