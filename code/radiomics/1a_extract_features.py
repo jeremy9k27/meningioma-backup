@@ -38,9 +38,9 @@ import SimpleITK as sitk
 # Set up the directories and paths, define global constants
 setup()
 MRI_DIR = 'data/preprocessing/output/7b_COMPLETED_PREPROCESSED'
-SEGS_DIR = 'data/smooth_segs_9-4-24/'
+SEGS_DIR = 'data/all_smooth_segs_12-12-24/'
 SEGS_PATHS = [f for f in os.listdir(SEGS_DIR) if f.startswith('Segmentation')]
-OUTPUT_DIR = 'data/radiomics/features9_smoothed'
+OUTPUT_DIR = 'data/radiomics/features10_smoothed'
 if not os.path.exists(OUTPUT_DIR): os.makedirs(OUTPUT_DIR)
 OUTPUT_FILE = f'{OUTPUT_DIR}/features.csv'
 LOG_FILE = f'{OUTPUT_DIR}/log.txt'
@@ -164,10 +164,10 @@ def extract_features(s, e):
         masks.append(mask_sitk)
     
     # Get the session name for the subject
-    session = f'{s}_Brainlab'
-    if len(lsdir(f'{MRI_DIR}/{s}')) > 1:
-        session = lsdir(f'{MRI_DIR}/{s}')[0]
-        logging.warning(f'More than one session for {s}, using the first one on file: {session}')
+    # session = f'{s}_Brainlab'
+    # if len(lsdir(f'{MRI_DIR}/{s}')) > 1:
+    session = lsdir(f'{MRI_DIR}/{s}')[0]
+    logging.warning(f'Using the first session name on file for subject: {session}')
 
     # Get the MRI modality paths for the subject
     s_modalities_paths = lsdir(f'{MRI_DIR}/{s}/{session}')
