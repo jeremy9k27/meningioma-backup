@@ -35,10 +35,10 @@ import SimpleITK as sitk
 
 # Set up the directories and paths, define global constants
 setup()
-MRI_DIR = 'data/preprocessing/output/7c_NONLIN_WARP_COMPLETED_PREPROCESSED'
-SEGS_DIR = 'data/8_mni_registered_mixed_segs/'
+MRI_DIR = 'data/preprocessing/output/7b_COMPLETED_PREPROCESSED'
+SEGS_DIR = 'data/smooth_segs_9-4-24/'
 SEGS_PATHS = [f for f in os.listdir(SEGS_DIR) if f.startswith('Segmentation')]
-OUTPUT_DIR = 'data/5a_radiomic_normalization_references_constrainedByBrainMask'
+OUTPUT_DIR = 'data/5a2_RoB_feats_using_9-4-24_smooth_segs'
 OUTPUT_FILE = f'{OUTPUT_DIR}/features.csv'
 LOG_FILE = f'{OUTPUT_DIR}/log.txt'
 DESIRED_SEQUENCES = ['AX_3D_T1_POST', 'AX_DIFFUSION', 'AX_ADC', 'SAG_3D_FLAIR']
@@ -145,7 +145,7 @@ def get_segs_for_subject(sub_no):
         mask = np.zeros_like(all_seg_arrays[0])
         for seg_arr in all_seg_arrays:
             if lab == 22:
-                mask = np.logical_or(mask > 0, seg_arr > 0)
+                mask = np.logical_or(mask > 0, np.logical_and(seg_arr > 0, seg_arr != 7))
                 mask = mask.astype(int) * 22
             elif lab == 13:
                 mask = np.logical_or(mask == 13, seg_arr == 1)
