@@ -401,5 +401,5 @@ umap_x, umap_y = plot_embeddings_w_thumbs('MethylationSubgroup', 'weighted_avg',
 # %%
 pooling_types = ['raw', 'weighted_avg'] # ['avg', 'max', 'min', 'median', 'sum', 'weighted_avg']
 for pt in pooling_types:
-    _, _ = plot_embeddings_w_thumbs('MethylationSubgroup', pt, 'umap')
+    _, _ = plot_embeddings_w_thumbs('Chr22q', pt, 'pca')
 # %%

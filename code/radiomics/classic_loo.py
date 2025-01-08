@@ -15,8 +15,8 @@ import joblib
 
 setup()
 
-output_folder = 'results/LOO_rad8_fine_9-6-24'
-lambdas = np.arange(0.06, 0.16, 0.01) # coarse = np.arange(0.1, 15, 1) # fine = np.arange(0.06, 0.16, 0.01)
+output_folder = 'results/LOO_rad10_ultrafine_1-6-25'
+lambdas = np.arange(0.06, 1.02, 0.02) # coarse = np.arange(0.1, 15, 1) # fine = np.arange(0.06, 0.16, 0.01)
 
 tasks = ['Chr22q', 'MethylationSubgroup', 'Chr1p'] # ['Chr22q', 'MethylationSubgroup', 'Chr1p']
 
@@ -31,7 +31,7 @@ for task in tasks:
         lambdas=lambdas,
         output_dir=output_folder,
         use_smote=True,
-        feat_file="data/radiomics/features8_smoothed/features_wide.csv", # data/5b_processed_normalized_features/features8_smoothed_constrainedByBrainMask_wide.csv", # f"data/collage_sparse/windowsize-9_binsize-64_summary_22nansfilled_pruned.csv" # "data/combined_feats/5-15-24_radiomics_pruned-collage_features.csv"
+        feat_file="data/radiomics/features10_smoothed/features_wide.csv", # data/5b_processed_normalized_features/features8_smoothed_constrainedByBrainMask_wide.csv", # f"data/collage_sparse/windowsize-9_binsize-64_summary_22nansfilled_pruned.csv" # "data/combined_feats/5-15-24_radiomics_pruned-collage_features.csv"
         feat_select=None # "T1"
     )
 
