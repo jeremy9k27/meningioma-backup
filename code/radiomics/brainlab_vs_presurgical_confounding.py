@@ -12,6 +12,9 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score, balanced_accuracy_score, matthews_corrcoef, jaccard_score
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+import umap
 
 setup()
 
@@ -19,10 +22,11 @@ task = 'Chr22q'
 data_dir = f'results/LOO_rad10_ultrafine_1-6-25/{task}'
 preds_df = pd.read_csv(f'{data_dir}/best_model_preds.csv')
 conf_df = pd.read_csv(f'data/labels/subject_sessions.csv')
+feats_df = pd.read_csv(f'data/radiomics/features10_smoothed/features_wide.csv')
 
 # %%
 preds_by_session = pd.merge(preds_df, conf_df, on='Subject Number')
-
+feats_by_session = pd.merge(feats_df, conf_df, on='Subject Number')
 # %%
 def get_binary_metrics(y_true, y_pred):
     conf_matrix = confusion_matrix(y_true, y_pred)
@@ -74,5 +78,35 @@ if task == 'MethylationSubgroup':
 else:
     brainlab_metrics = get_binary_metrics(brainlab_preds['Label'].values, brainlab_preds['Prediction'].values)
     presurgical_metrics = get_binary_metrics(presurgical_preds['Label'].values, presurgical_preds['Prediction'].values)
+
+# %%
+#### PCA ####
+pca = PCA(n_components=2, random_state=42)
+pca_results = pca.fit_transform(StandardScaler().fit_transform(feats_df.dropna(axis=1, how='all').fillna(0)))
+# pca_results = pca.fit_transform(flattened_embeddings)
+
+var = pca.explained_variance_ratio_
+
+pca_df = pd.DataFrame(pca_results, columns=['PC1', 'PC2'])
+# for key in labels.keys():
+#     pca_df.loc[:, key] = np.stack(labels[key][:len(pca_results)])
+
+# for key in labels.keys():
+pca_df.loc[:, 'Session'] = np.stack(feats_by_session['Session'][:len(pca_results)])
+g = sns.relplot(data=pca_df, x='PC1', y='PC2', hue='Session', palette='tab10')
+g.figure.suptitle(f'PCA\nVar Exp: PC1={round(var[0], 2)}, PC2={round(var[1], 2)}', y=1.02)
+g.savefig(f'data/embeddings/PCA_embeddings.png')
+
+#### UMAP ####
+# umap_results = umap.UMAP(n_components=2, random_state=42).fit_transform(flattened_embeddings)
+
+# umap_df = pd.DataFrame(umap_results, columns=['x', 'y'])
+# for key in labels.keys():
+#     umap_df.loc[:, key] = np.stack(labels[key][:len(umap_results)])
+
+# for key in labels.keys():
+#     g = sns.relplot(data=umap_df, x='x', y='y', hue=key, palette='tab10')
+#     g.figure.suptitle(f'UMAP {pooling} Pooled Embeddings: {key}', y=1.02)
+#     g.savefig(f'data/tsne/UMAP_{pooling}_pooled_embeddings_{key}.png')
 
 # %%
