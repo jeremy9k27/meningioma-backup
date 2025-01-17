@@ -157,11 +157,11 @@ for subject in tqdm(lsdir(MRI_DIR), desc='Subjects', total=len(lsdir(MRI_DIR)), 
     for scan in tqdm(lsdir(f'{MRI_DIR}/{subject}/{session}'), desc='Scans', total=len(lsdir(f'{MRI_DIR}/{subject}/{session}')), position=1, colour='blue', dynamic_ncols=True):
         scan_path = f'{MRI_DIR}/{subject}/{session}/{scan}/{session}_{scan}.nii.gz'
         # read image:
-        scan = ants.image_read(scan_path, reorient='IAL').numpy()
-        assert scan.shape == seg.shape
+        mri = ants.image_read(scan_path, reorient='IAL').numpy()
+        assert mri.shape == seg.shape
         # get slice w/most tumor content in the axial plane:
         max_cancerous_slice = find_max_cancerous_slice(seg)
-        im = scan[max_cancerous_slice]
+        im = mri[max_cancerous_slice]
         # pad image to 240x240:
         im_padded = pad_im(im)
         assert im_padded.shape == (240, 240)
