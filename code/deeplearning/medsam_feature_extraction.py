@@ -19,7 +19,7 @@ setup()
 MRI_DIR = 'data/preprocessing/output/7b_COMPLETED_PREPROCESSED'
 SEG_DIR = 'data/all_smooth_segs_12-12-24/'
 SEGS_PATHS = [f for f in os.listdir(SEG_DIR) if f.startswith('Segmentation')]
-OUTPUT_DIR = 'data/features/medsam'
+OUTPUT_DIR = 'data/deeplearning_features/medsam'
 
 # Load the encoder model:
 encoder_model = sam_model_registry['vit_b'](checkpoint='data/encoder_models/medsam/medsam_vit_b.pth').image_encoder.to('cuda:0').eval()
@@ -154,7 +154,7 @@ for subject in tqdm(lsdir(MRI_DIR), desc='Subjects', total=len(lsdir(MRI_DIR)), 
     session = lsdir(f'{MRI_DIR}/{subject}')[0]
     seg = get_segs(subject)
     if seg is None: continue # subject has no segmentation available so we skip
-    for scan in tqdm(lsdir(f'{MRI_DIR}/{subject}/{session}'), desc='Scans', total=len(lsdir(f'{MRI_DIR}/{subject}/{session}')), position=1, colour='blue', dynamic_ncols=True):
+    for scan in tqdm(lsdir(f'{MRI_DIR}/{subject}/{session}'), desc='Scans', total=len(lsdir(f'{MRI_DIR}/{subject}/{session}')), position=1, colour='blue', dynamic_ncols=True, leave=False):
         scan_path = f'{MRI_DIR}/{subject}/{session}/{scan}/{session}_{scan}.nii.gz'
         # read image:
         mri = ants.image_read(scan_path, reorient='IAL').numpy()
