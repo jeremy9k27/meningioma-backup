@@ -27,6 +27,11 @@ feats_df = pd.read_csv(f'data/radiomics/features10_smoothed/features_wide.csv')
 # %%
 preds_by_session = pd.merge(preds_df, conf_df, on='Subject Number')
 feats_by_session = pd.merge(feats_df, conf_df, on='Subject Number')
+feats_w_preds_by_session = pd.merge(feats_by_session, preds_by_session.drop(columns=['Session']), on='Subject Number', how='left')
+nans = np.isnan(feats_w_preds_by_session['Prediction'])
+corrects = feats_w_preds_by_session['Label'] == feats_w_preds_by_session['Prediction']
+feats_w_preds_by_session.loc[:, 'Correct'] = [np.nan if n else c for n, c in zip(nans, corrects)]
+
 # %%
 def get_binary_metrics(y_true, y_pred):
     conf_matrix = confusion_matrix(y_true, y_pred)
@@ -80,9 +85,12 @@ else:
     presurgical_metrics = get_binary_metrics(presurgical_preds['Label'].values, presurgical_preds['Prediction'].values)
 
 # %%
+# Scale data
+feats_scaled = StandardScaler().fit_transform(feats_df.dropna(axis=1, how='all').fillna(0))
+
 #### PCA ####
 pca = PCA(n_components=2, random_state=42)
-pca_results = pca.fit_transform(StandardScaler().fit_transform(feats_df.dropna(axis=1, how='all').fillna(0)))
+pca_results = pca.fit_transform(feats_scaled)
 # pca_results = pca.fit_transform(flattened_embeddings)
 
 var = pca.explained_variance_ratio_
@@ -98,15 +106,17 @@ g.figure.suptitle(f'PCA\nVar Exp: PC1={round(var[0], 2)}, PC2={round(var[1], 2)}
 g.savefig(f'data/embeddings/PCA_embeddings.png')
 
 #### UMAP ####
-# umap_results = umap.UMAP(n_components=2, random_state=42).fit_transform(flattened_embeddings)
+umap_results = umap.UMAP(n_components=2, random_state=42).fit_transform(feats_scaled)
 
-# umap_df = pd.DataFrame(umap_results, columns=['x', 'y'])
+umap_df = pd.DataFrame(umap_results, columns=['x', 'y'])
+umap_df.loc[:, 'Session'] = np.stack(feats_by_session['Session'][:len(umap_results)])
+
 # for key in labels.keys():
 #     umap_df.loc[:, key] = np.stack(labels[key][:len(umap_results)])
 
 # for key in labels.keys():
-#     g = sns.relplot(data=umap_df, x='x', y='y', hue=key, palette='tab10')
-#     g.figure.suptitle(f'UMAP {pooling} Pooled Embeddings: {key}', y=1.02)
-#     g.savefig(f'data/tsne/UMAP_{pooling}_pooled_embeddings_{key}.png')
+g = sns.relplot(data=umap_df, x='x', y='y', hue='Session', palette='tab10')
+g.figure.suptitle(f'UMAP', y=1.02)
+# g.savefig(f'data/embeddings/UMAP_embeddings.png')
 
 # %%
