@@ -1,4 +1,4 @@
-# %%
+# Package imports and directory setup:
 import sys
 import os
 
@@ -20,8 +20,11 @@ MRI_DIR = 'data/preprocessing/output/7b_COMPLETED_PREPROCESSED'
 SEG_DIR = 'data/all_smooth_segs_12-12-24/'
 SEGS_PATHS = [f for f in os.listdir(SEG_DIR) if f.startswith('Segmentation')]
 OUTPUT_DIR = 'data/features/medsam'
+
+# Load the encoder model:
 encoder_model = sam_model_registry['vit_b'](checkpoint='data/encoder_models/medsam/medsam_vit_b.pth').image_encoder.to('cuda:0').eval()
 
+# Helper functions:
 def get_segs(subject, roi=22):
     """
     Given a subject ID number, returns volumetric segmentation mask for the specified region of interest (roi).
@@ -146,7 +149,7 @@ def pad_im(im, desired_shape=(240, 240)):
     pad_width = (width_diff // 2, width_diff // 2 + width_diff % 2)
     return np.pad(im, (pad_height, pad_width), mode='constant', constant_values=0)
 
-# %%
+# Main loop:
 for subject in tqdm(lsdir(MRI_DIR), desc='Subjects', total=len(lsdir(MRI_DIR)), position=0, colour='green', dynamic_ncols=True):
     session = lsdir(f'{MRI_DIR}/{subject}')[0]
     seg = get_segs(subject)
@@ -179,5 +182,3 @@ for subject in tqdm(lsdir(MRI_DIR), desc='Subjects', total=len(lsdir(MRI_DIR)), 
         if not os.path.exists(cur_output_dir): os.makedirs(cur_output_dir)
         # save features:
         torch.save(features, f'{cur_output_dir}/{session}_{scan}.pt')
-
-# %%
