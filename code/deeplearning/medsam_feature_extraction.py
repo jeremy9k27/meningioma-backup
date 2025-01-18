@@ -140,7 +140,7 @@ def find_max_cancerous_slice(seg, axis=0):
 
 def pad_im(im, desired_shape=(240, 240)):
     """
-    Pads an image array to a desired shape by adding zeros around the image.
+    Pads a np.ndarray to a desired shape by adding zeros around the image.
     """
     im_shape = im.shape
     height_diff = desired_shape[0] - im_shape[0]
@@ -151,9 +151,9 @@ def pad_im(im, desired_shape=(240, 240)):
 
 # Main loop:
 for subject in tqdm(lsdir(MRI_DIR), desc='Subjects', total=len(lsdir(MRI_DIR)), position=0, colour='green', dynamic_ncols=True):
-    session = lsdir(f'{MRI_DIR}/{subject}')[0]
+    session = lsdir(f'{MRI_DIR}/{subject}')[0] # we take the first available session (alphabetically), others are ignored
     seg = get_segs(subject)
-    if seg is None: continue # subject has no segmentation available so we skip
+    if seg is None: continue # if subject has no segmentation available, we skip the subject
     for scan in tqdm(lsdir(f'{MRI_DIR}/{subject}/{session}'), desc='Scans', total=len(lsdir(f'{MRI_DIR}/{subject}/{session}')), position=1, colour='blue', dynamic_ncols=True, leave=False):
         scan_path = f'{MRI_DIR}/{subject}/{session}/{scan}/{session}_{scan}.nii.gz'
         # read image:
@@ -164,10 +164,8 @@ for subject in tqdm(lsdir(MRI_DIR), desc='Subjects', total=len(lsdir(MRI_DIR)), 
         im = mri[max_cancerous_slice]
         # pad image to 240x240:
         im_padded = pad_im(im)
-        assert im_padded.shape == (240, 240)
         # resize image to 1024x1024:
         im_resized = cv2.resize(im_padded, (1024, 1024), interpolation=cv2.INTER_CUBIC)
-        assert im_resized.shape == (1024, 1024)
         # rescale image to [0, 255]:
         im_rescaled = (im_resized - im_resized.min()) / (im_resized.max() - im_resized.min()) * 255
         # copy image to make 3 channels:
