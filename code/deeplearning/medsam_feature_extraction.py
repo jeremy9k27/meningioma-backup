@@ -149,6 +149,34 @@ def pad_im(im, desired_shape=(240, 240)):
     pad_width = (width_diff // 2, width_diff // 2 + width_diff % 2)
     return np.pad(im, (pad_height, pad_width), mode='constant', constant_values=0)
 
+def preprocess_for_medsam(im):
+    """
+    Preprocesses an image for input into the MedSam encoder model. 
+    
+    From the MedSam paper:
+    ----------------------
+    "For MR... images, we clipped the intensity values to the range between the 0.5th and 99.5th percentiles before rescaling them to the range of [0, 255].
+    Finally, to meet the model's input requirements, all images were resized to a uniform size of 1024 x 1024 x 3... 
+    for 3D CT and MR images, each 2D slice was resized to 1024 x 1024, and the channel was repeated three times to maintain consistency...
+    Bi-cubic interpolation was used for resizing images, while nearest-neighbor interpolation was applied for resizing masks to preserve their precise boundaries and avoid introducing unwanted artifacts."
+
+    Warning:
+    --------
+    Didn't bother clipping intensity values to the 0.5th and 99.5th percentiles. 
+    Also should maybe consider normalizing each image using the global min and max values across all images in the dataset.
+    For now, haven't implemented either.
+    """
+    # pad image to 240x240:
+    im_padded = pad_im(im)
+    # resize image to 1024x1024:
+    im_resized = cv2.resize(im_padded, (1024, 1024), interpolation=cv2.INTER_CUBIC)
+    # rescale image to [0, 255]:
+    im_rescaled = (im_resized - im_resized.min()) / (im_resized.max() - im_resized.min()) * 255
+    # copy image to make 3 channels:
+    im_3c = np.repeat(im_rescaled[:, :, None], 3, axis=-1)
+    # convert to tensor (add batch dimension and reorganize shape to be batch x channels x height x width):
+    return torch.from_numpy(im_3c).unsqueeze(0).permute(0, 3, 1, 2).to('cuda:0')
+
 # Main loop:
 for subject in tqdm(lsdir(MRI_DIR), desc='Subjects', total=len(lsdir(MRI_DIR)), position=0, colour='green', dynamic_ncols=True):
     session = lsdir(f'{MRI_DIR}/{subject}')[0] # we take the first available session (alphabetically), others are ignored
@@ -162,16 +190,8 @@ for subject in tqdm(lsdir(MRI_DIR), desc='Subjects', total=len(lsdir(MRI_DIR)), 
         # get slice w/most tumor content in the axial plane:
         max_cancerous_slice = find_max_cancerous_slice(seg)
         im = mri[max_cancerous_slice]
-        # pad image to 240x240:
-        im_padded = pad_im(im)
-        # resize image to 1024x1024:
-        im_resized = cv2.resize(im_padded, (1024, 1024), interpolation=cv2.INTER_CUBIC)
-        # rescale image to [0, 255]:
-        im_rescaled = (im_resized - im_resized.min()) / (im_resized.max() - im_resized.min()) * 255
-        # copy image to make 3 channels:
-        im_3c = np.repeat(im_rescaled[:, :, None], 3, axis=-1)
-        # convert to tensor (add batch dimension and reorganize shape to be batch x channels x height x width):
-        im_tensor = torch.from_numpy(im_3c).unsqueeze(0).permute(0, 3, 1, 2).to('cuda:0')
+        # preprocess image for MedSam:
+        im_tensor = preprocess_for_medsam(im)
         # encode image:
         with torch.no_grad():
             features = encoder_model(im_tensor).squeeze() # shape (256, 64, 64)
