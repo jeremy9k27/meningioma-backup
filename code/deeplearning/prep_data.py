@@ -2,10 +2,15 @@
 import os
 if not os.getcwd().endswith('code'): os.chdir('..')
 from deeplearning.utils import get_segs, get_mris
-from preprocessing.utils import lsdir
+from deeplearning.transforms import CenterOnTumor
+from preprocessing.utils import lsdir, explore_3D_array_with_mask_contour
 from radiomics.utils import plot_data_split
 from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
+import torch
 import pandas as pd
+from tqdm import tqdm
+
 
 # %%
 class MeningiomaDataset(Dataset):
@@ -16,8 +21,8 @@ class MeningiomaDataset(Dataset):
         mri_dir='data/preprocessing/output/7b_COMPLETED_PREPROCESSED', 
         pulse_sequences=['T1_POST', 'FLAIR', 'ADC'], 
         seg_dir='data/all_smooth_segs_12-12-24/', 
-        seg_rois=[1, 3, 4, 5, 6], 
-        transform=None
+        seg_rois=[1, 3, 4, 5, 6, 22], 
+        transforms=None
     ):
         """
         Parameters
@@ -28,7 +33,7 @@ class MeningiomaDataset(Dataset):
         pulse_sequences (list): List of pulse sequences to include in the dataset.
         seg_dir (str): Directory containing the segmentation masks. If None, no segmentation masks will be included in the dataset.
         seg_rois (list): List of region of interest (roi) labels to extract from the segmentation masks.
-        transform (callable, optional): Optional transform to be applied to the data.
+        transforms (torchvision.transforms.Compose): Composed list of custom transforms (designed to work on sample) to apply to the data.
         """
         # store input arguments
         self.task_name = task_name
@@ -37,7 +42,7 @@ class MeningiomaDataset(Dataset):
         self.pulse_sequences = pulse_sequences
         self.seg_dir = seg_dir
         self.seg_rois = seg_rois
-        self.transform = transform
+        self.transforms = transforms
 
         # read in segmentation file paths
         if self.seg_dir is not None:
@@ -105,18 +110,24 @@ class MeningiomaDataset(Dataset):
 
         # get mris
         mris = get_mris(subject_mri_dir=f'{self.mri_dir}/{sub_id}/{session}', pulse_sequences=self.pulse_sequences)
-        if self.transform: mris = self.transform(mris)
-
+        for k in mris.keys(): mris[k] = torch.from_numpy(mris[k])
+                    
         # get label
         label = self.labels[sub_id]
 
-        # get segmentations
+        # combine all info
+        sample = {'mris': mris, 'label': label, 'sub_id': sub_id, 'session_type': session_type}
+
+        # get segmentations if desired
         if self.seg_dir is not None:
             segs = get_segs(subject=sub_id, seg_dir=self.seg_dir, seg_paths=self.seg_paths, rois=self.seg_rois)
-            if self.transform: segs = self.transform(segs)
-            return mris, segs, label, sub_id, session_type
+            for k in segs.keys(): segs[k] = torch.from_numpy(segs[k])
+            sample['segs'] = segs
         
-        return mris, label, sub_id, session_type
+        # apply transforms if desired
+        if self.transforms: sample = self.transforms(sample)
+
+        return sample
     
     def plot_data_split(self):
         plot_data_split(self.labels[self.subjects].values.astype(int), title=f"All subjects {self.task_name}")
@@ -135,9 +146,18 @@ class MeningiomaDataset(Dataset):
 if not os.getcwd().endswith('Meningioma'): os.chdir('..')
 
 ds = MeningiomaDataset(
-    task_name='Chr22q',
-    pulse_sequences=['t1_post']
+    task_name='MethylationSubgroup',
+    pulse_sequences=['t1_post'],
+    seg_rois=[22]
 )
 # %%
-mris, segs, label, sub_id, session_type = ds[0]
+tx = CenterOnTumor(cube_size=96, margin=5)
+# pad_sizes = []
+# for sample in tqdm(ds, total=len(ds)):
+#     pad_sizes.append(tx(sample))
+sample_og = ds[59]
+explore_3D_array_with_mask_contour(sample_og['mris']['t1_post'].numpy(), sample_og['segs'][22].numpy())
+
 # %%
+sample_tx = tx(sample_og)
+explore_3D_array_with_mask_contour(sample_tx['mris']['t1_post'], sample_tx['segs'][22])
