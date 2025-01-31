@@ -150,14 +150,21 @@ ds = MeningiomaDataset(
     pulse_sequences=['t1_post'],
     seg_rois=[22]
 )
-# %%
-tx = CenterOnTumor(cube_size=96, margin=5)
-# pad_sizes = []
-# for sample in tqdm(ds, total=len(ds)):
-#     pad_sizes.append(tx(sample))
-sample_og = ds[59]
-explore_3D_array_with_mask_contour(sample_og['mris']['t1_post'].numpy(), sample_og['segs'][22].numpy())
+def debug_cot(seg_mask):
+    tumor_voxels = torch.nonzero(seg_mask)
+    min_coords = tumor_voxels.min(dim=0).values
+    max_coords = tumor_voxels.max(dim=0).values
+    bbox_shape = max_coords - min_coords
+    return bbox_shape
 
 # %%
-sample_tx = tx(sample_og)
-explore_3D_array_with_mask_contour(sample_tx['mris']['t1_post'], sample_tx['segs'][22])
+sample_og = ds[2]
+explore_3D_array_with_mask_contour(sample_og['mris']['t1_post'].numpy(), sample_og['segs'][22].numpy())
+debug_cot(sample_og['segs'][22])
+# %%
+tx = CenterOnTumor(cube_size=96, margin=5)
+sample_tx = tx(sample_og.copy())
+explore_3D_array_with_mask_contour(sample_tx['mris']['t1_post'].numpy(), sample_tx['segs'][22].numpy())
+debug_cot(sample_tx['segs'][22])
+
+# %%

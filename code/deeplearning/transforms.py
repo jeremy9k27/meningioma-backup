@@ -39,7 +39,7 @@ class CenterOnTumor(object):
         max_dim = bbox_shape.max().item()
 
         # calculate new min and max coords
-        new_max_coords = torch.clamp(center_coords + max_dim // 2, max=torch.tensor(whole_tumor_mask.shape))
+        new_max_coords = torch.clamp(center_coords + (max_dim // 2) + (max_dim % 2), max=torch.tensor(whole_tumor_mask.shape))
         new_min_coords = torch.clamp(center_coords - max_dim // 2, min=0)
         
         # sanity check that the new bbox is a cube
@@ -54,7 +54,7 @@ class CenterOnTumor(object):
         
         for k in segs.keys():
             segs[k] = segs[k][new_min_coords[0]:new_max_coords[0], new_min_coords[1]:new_max_coords[1], new_min_coords[2]:new_max_coords[2]]
-            segs[k] = interpolate(segs[k].unsqueeze(0).unsqueeze(0), size=(self.cube_size,)*3, mode='nearest-exact').squeeze()
+            segs[k] = interpolate(segs[k].unsqueeze(0).unsqueeze(0).float(), size=(self.cube_size,)*3, mode='nearest-exact').squeeze()
 
         sample['mris'] = mris
         sample['segs'] = segs
