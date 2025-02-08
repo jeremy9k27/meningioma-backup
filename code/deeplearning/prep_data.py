@@ -10,7 +10,13 @@ from torchvision import transforms
 import torch
 import pandas as pd
 from tqdm import tqdm
+from zlib import adler32
+import logging
 
+def adler32_hash(input_string):
+    input_bytes = input_string.encode('utf-8')    
+    hash_value = adler32(input_bytes)
+    return hex(hash_value)
 
 # %%
 class MeningiomaDataset(Dataset):
@@ -20,9 +26,10 @@ class MeningiomaDataset(Dataset):
         labels_file='data/labels/MeningiomaBiomarkerData.csv', 
         mri_dir='data/preprocessing/output/7b_COMPLETED_PREPROCESSED', 
         pulse_sequences=['T1_POST', 'FLAIR', 'ADC'], 
-        seg_dir='data/all_smooth_segs_12-12-24/', 
+        seg_dir='data/all_smooth_segs_02-08-25/', 
         seg_rois=[1, 3, 4, 5, 6, 22], 
-        transforms=None
+        transforms=None,
+        output_dir='data/pytorch_datasets'
     ):
         """
         Parameters
@@ -34,6 +41,7 @@ class MeningiomaDataset(Dataset):
         seg_dir (str): Directory containing the segmentation masks. If None, no segmentation masks will be included in the dataset.
         seg_rois (list): List of region of interest (roi) labels to extract from the segmentation masks.
         transforms (torchvision.transforms.Compose): Composed list of custom transforms (designed to work on sample) to apply to the data.
+        output_dir (str): Directory to save the dataset to.
         """
         # store input arguments
         self.task_name = task_name
@@ -43,6 +51,30 @@ class MeningiomaDataset(Dataset):
         self.seg_dir = seg_dir
         self.seg_rois = seg_rois
         self.transforms = transforms
+
+        # create output directory using adler32 hash of input arguments
+        self.hash = adler32_hash(f"{task_name}{labels_file}{mri_dir}{[ps.lower() for ps in pulse_sequences]}{seg_dir}{seg_rois}{transforms}")
+        self.output_dir = f"{output_dir}/{self.hash}"
+        self.is_new_ds = not os.path.exists(self.output_dir)
+        if self.is_new_ds: 
+            os.makedirs(f"{self.output_dir}/items")
+
+        # set up logging
+        self.logger = logging.getLogger()
+        self.logger.setLevel(logging.INFO)
+        file_handler = logging.FileHandler(f'{self.output_dir}/log.txt')
+        formatter = logging.Formatter('%(asctime)s: %(message)s', datefmt='%m/%d/%Y %H:%M:%S')
+        file_handler.setFormatter(formatter)
+        self.logger.addHandler(file_handler)
+        if self.is_new_ds:
+            self.logger.info(f"Creating MeningiomaDataset with hash: {self.hash}")
+            self.logger.info(f"\ttask_name: {task_name}")
+            self.logger.info(f"\tlabels_file: {labels_file}")
+            self.logger.info(f"\tmri_dir: {mri_dir}")
+            self.logger.info(f"\tpulse_sequences: {pulse_sequences}")
+            self.logger.info(f"\tseg_dir: {seg_dir}")
+            self.logger.info(f"\tseg_rois: {seg_rois}")
+            self.logger.info(f"\ttransforms: {transforms}")
 
         # read in segmentation file paths
         if self.seg_dir is not None:
@@ -97,42 +129,58 @@ class MeningiomaDataset(Dataset):
         for session in self.subjects_by_session:
             self.subjects_by_session[session] = sorted(list(set(self.subjects_by_session[session]) & subjects_set))
         
+        if self.is_new_ds:
+            self.logger.info(f"Number of subjects retrieved using above params: {len(self.subjects)}")
+            self.logger.info(f"Subjects list: {self.subjects}")
+            self.logger.info('-'*80)
+        
+        if not self.is_new_ds:
+            self.logger.info(f"Loading existing dataset from {self.output_dir}")
+            self.logger.info('-'*80)
+
     def __len__(self):
         return len(self.subjects)
 
     def __getitem__(self, idx):
-        # get subject ID
-        sub_id = self.subjects[idx]
+        if os.path.exists(f"{self.output_dir}/items/{idx}.pt"):
+            sample = torch.load(f"{self.output_dir}/items/{idx}.pt")
+            return sample
+        else:
+            # get subject ID
+            sub_id = self.subjects[idx]
 
-        # get session info
-        session = lsdir(f'{self.mri_dir}/{sub_id}')[0]
-        session_type = session.split('_')[-1].lower()
+            # get session info
+            session = lsdir(f'{self.mri_dir}/{sub_id}')[0]
+            session_type = session.split('_')[-1].lower()
 
-        # get mris
-        mris = get_mris(subject_mri_dir=f'{self.mri_dir}/{sub_id}/{session}', pulse_sequences=self.pulse_sequences)
-        for k in mris.keys(): mris[k] = torch.from_numpy(mris[k])
-                    
-        # get label
-        label = self.labels[sub_id]
+            # get mris
+            mris = get_mris(subject_mri_dir=f'{self.mri_dir}/{sub_id}/{session}', pulse_sequences=self.pulse_sequences)
+            for k in mris.keys(): mris[k] = torch.from_numpy(mris[k])
+                        
+            # get label
+            label = self.labels[sub_id]
 
-        # combine all info
-        sample = {'mris': mris, 'label': label, 'sub_id': sub_id, 'session_type': session_type}
+            # combine all info
+            sample = {'mris': mris, 'label': label, 'sub_id': sub_id, 'session_type': session_type}
 
-        # get segmentations if desired
-        if self.seg_dir is not None:
-            segs = get_segs(subject=sub_id, seg_dir=self.seg_dir, seg_paths=self.seg_paths, rois=self.seg_rois)
-            for k in segs.keys(): segs[k] = torch.from_numpy(segs[k])
-            sample['segs'] = segs
-        
-        # apply transforms if desired
-        if self.transforms: sample = self.transforms(sample)
+            # get segmentations if desired
+            if self.seg_dir is not None:
+                segs = get_segs(subject=sub_id, seg_dir=self.seg_dir, seg_paths=self.seg_paths, rois=self.seg_rois)
+                for k in segs.keys(): segs[k] = torch.from_numpy(segs[k])
+                sample['segs'] = segs
+            
+            # apply transforms if desired
+            if self.transforms: sample = self.transforms(sample)
 
-        return sample
+            # save sample to disk
+            torch.save(sample, f"{self.output_dir}/items/{idx}.pt")
+
+            return sample
     
     def plot_data_split(self):
-        plot_data_split(self.labels[self.subjects].values.astype(int), title=f"All subjects {self.task_name}")
-        plot_data_split(self.labels[self.subjects_by_session['brainlab']].values.astype(int), title=f"Brainlab subjects {self.task_name}")
-        plot_data_split(self.labels[self.subjects_by_session['presurgical']].values.astype(int), title=f"Presurgical subjects {self.task_name}")
+        plot_data_split(self.labels[self.subjects].values.astype(int), title=f"All subjects {self.task_name}", output_file=f"{self.output_dir}/plots/data_split_all.png")
+        plot_data_split(self.labels[self.subjects_by_session['brainlab']].values.astype(int), title=f"Brainlab subjects {self.task_name}", output_file=f"{self.output_dir}/plots/data_split_brainlab.png")
+        plot_data_split(self.labels[self.subjects_by_session['presurgical']].values.astype(int), title=f"Presurgical subjects {self.task_name}", output_file=f"{self.output_dir}/plots/data_split_presurgical.png")
 
     def get_labels(self):
         return self.labels
@@ -145,26 +193,30 @@ class MeningiomaDataset(Dataset):
 # %%
 if not os.getcwd().endswith('Meningioma'): os.chdir('..')
 
+txs = transforms.Compose([
+    CenterOnTumor(cube_size=96, margin=5, pad_size=60)
+])
+
 ds = MeningiomaDataset(
     task_name='MethylationSubgroup',
     pulse_sequences=['t1_post'],
-    seg_rois=[22]
+    seg_rois=[22],
+    transforms=txs
 )
-def debug_cot(seg_mask):
-    tumor_voxels = torch.nonzero(seg_mask)
-    min_coords = tumor_voxels.min(dim=0).values
-    max_coords = tumor_voxels.max(dim=0).values
-    bbox_shape = max_coords - min_coords
-    return bbox_shape
+
+for sample in tqdm(ds, total=len(ds)):
+    pass
 
 # %%
-sample_og = ds[2]
-explore_3D_array_with_mask_contour(sample_og['mris']['t1_post'].numpy(), sample_og['segs'][22].numpy())
-debug_cot(sample_og['segs'][22])
+for sample in tqdm(ds, total=len(ds)):
+    pass
+
 # %%
-tx = CenterOnTumor(cube_size=96, margin=5)
-sample_tx = tx(sample_og.copy())
-explore_3D_array_with_mask_contour(sample_tx['mris']['t1_post'].numpy(), sample_tx['segs'][22].numpy())
-debug_cot(sample_tx['segs'][22])
+for sample in tqdm(ds, total=len(ds)):
+    assert 'mris' in sample.keys()
+    assert 'label' in sample.keys()
+    assert 'sub_id' in sample.keys()
+    assert 'session_type' in sample.keys()
+    assert 'segs' in sample.keys()
 
 # %%
