@@ -2,6 +2,11 @@ import torch
 from torch.nn.functional import pad, interpolate
 
 class CenterOnTumor(object):
+    """
+    Creates a [cube_size x cube_size x cube_size] voxel centered on the tumor, 
+    which includes a [margin x margin x margin] around it. The pad_size is used
+    to avoid index out of bounds errors for those tumors close to the edge of a volume.
+    """
     def __init__(self, cube_size=96, margin=5, pad_size=60):
         self.cube_size = cube_size
         self.margin = margin
@@ -21,6 +26,7 @@ class CenterOnTumor(object):
             segs[k] = pad(segs[k], pad=(self.pad_size,)*6)
         
         # get whole tumor mask
+        assert 22 in segs.keys(), "Segmentation key 22 not found in the provided segmentations. 22 = whole tumor mask needed to center on tumor."
         whole_tumor_mask = segs[22]
 
         # get bounding box of tumor mask
