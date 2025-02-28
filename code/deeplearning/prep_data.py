@@ -14,11 +14,11 @@ from zlib import adler32
 import logging
 
 def adler32_hash(input_string):
+    """Given an input string, returns an adler hexcode hash unique to that string."""
     input_bytes = input_string.encode('utf-8')    
     hash_value = adler32(input_bytes)
     return hex(hash_value)
 
-# %%
 class MeningiomaDataset(Dataset):
     def __init__(
         self, 
@@ -143,7 +143,7 @@ class MeningiomaDataset(Dataset):
 
     def __getitem__(self, idx):
         if os.path.exists(f"{self.output_dir}/items/{idx}.pt"):
-            sample = torch.load(f"{self.output_dir}/items/{idx}.pt")
+            sample = torch.load(f"{self.output_dir}/items/{idx}.pt", weights_only=False)
             return sample
         else:
             # get subject ID
@@ -177,7 +177,12 @@ class MeningiomaDataset(Dataset):
 
             return sample
     
+    def precache(self):
+        """Iterates through the dataset, saving each sample as a .pt object for fast access later"""
+        for sample in tqdm(self, total=len(self), desc="Precaching... "): pass
+
     def plot_data_split(self):
+        """Plots the labels breakdown in 1. the entire dataset; 2. among brainlab subjects; and 3. among presurgical subjects. Saves plots to plot dir."""
         plot_data_split(self.labels[self.subjects].values.astype(int), title=f"All subjects {self.task_name}", output_file=f"{self.output_dir}/plots/data_split_all.png")
         plot_data_split(self.labels[self.subjects_by_session['brainlab']].values.astype(int), title=f"Brainlab subjects {self.task_name}", output_file=f"{self.output_dir}/plots/data_split_brainlab.png")
         plot_data_split(self.labels[self.subjects_by_session['presurgical']].values.astype(int), title=f"Presurgical subjects {self.task_name}", output_file=f"{self.output_dir}/plots/data_split_presurgical.png")
@@ -189,8 +194,8 @@ class MeningiomaDataset(Dataset):
         if self.seg_dir is not None:
             return self.subjects, self.subjects_with_mris, self.subjects_with_segs, self.subjects_with_labels
         return self.subjects, self.subjects_with_mris, self.subjects_with_labels
-    
-# %%
+
+
 if not os.getcwd().endswith('Meningioma'): os.chdir('..')
 
 txs = transforms.Compose([
@@ -204,12 +209,7 @@ ds = MeningiomaDataset(
     transforms=txs
 )
 
-for sample in tqdm(ds, total=len(ds)):
-    pass
-
-# %%
-for sample in tqdm(ds, total=len(ds)):
-    pass
+ds.precache()
 
 # %%
 for sample in tqdm(ds, total=len(ds)):

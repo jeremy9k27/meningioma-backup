@@ -7,6 +7,9 @@ class CenterOnTumor(object):
         self.margin = margin
         self.pad_size = pad_size
     
+    def __repr__(self):
+        return f"{self.__class__.__name__}(cube_size={self.cube_size}, margin={self.margin}, pad_size={self.pad_size})"
+    
     def __call__(self, sample):
         mris = sample['mris']
         segs = sample['segs']
