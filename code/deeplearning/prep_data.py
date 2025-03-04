@@ -245,14 +245,21 @@ if not os.getcwd().endswith('Meningioma'): os.chdir('..')
 #     CenterOnTumor(cube_size=96, margin=5, pad_size=60)
 # ])
 
-ds = MeningiomaDataset(
-    task_name='MethylationSubgroup',
+# ds = MeningiomaDataset(
+#     task_name='MethylationSubgroup',
+#     pulse_sequences=['t1_post'],
+#     seg_rois=[22],
+#     transforms=None
+# )
+
+# ds.plot_data_split()
+
+ds2 = MeningiomaDataset(
+    task_name='Chr22q',
     pulse_sequences=['t1_post'],
     seg_rois=[22],
     transforms=None
 )
-
-ds.plot_data_split()
 
 # ds.precache()
 

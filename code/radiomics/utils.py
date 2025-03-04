@@ -137,7 +137,7 @@ def plot_data_split(y, title='MethylationSubgroup', output_file=None):
         if len(class_counts) != 3:
             class_counts = np.concatenate((class_counts, [0]))
     else:
-        class_ids = ['Intact', 'Loss']
+        class_ids = ['Intact', 'Lost']
         if len(class_counts) != 2:
             class_counts = np.concatenate((class_counts, [0]))
     
