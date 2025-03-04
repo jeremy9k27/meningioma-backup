@@ -130,16 +130,20 @@ def plot_data_split(y, title='MethylationSubgroup', output_file=None):
     """
     Bar graph showing the number of samples per class
     """    
-    class_counts = pd.Series(y).value_counts()
+    class_counts = np.bincount(y)
 
-    if len(np.unique(y)) == 3:
+    if title.endswith('MethylationSubgroup'):
         class_ids = ['Merlin Intact', 'Immune Enriched', 'Hypermetabolic']
+        if len(class_counts) != 3:
+            class_counts = np.concatenate((class_counts, [0]))
     else:
         class_ids = ['Intact', 'Loss']
+        if len(class_counts) != 2:
+            class_counts = np.concatenate((class_counts, [0]))
     
     # Plotting the bar graph of class counts
     plt.figure(figsize=(6, 4))
-    bars = sns.barplot(x=class_ids, y=class_counts.values, palette='viridis')
+    bars = sns.barplot(x=class_ids, y=class_counts, palette='viridis', hue=class_ids, legend=False)
     plt.ylabel('# of samples')
     plt.title(f'{title} (n = {len(y)})')
     for bar in bars.patches:

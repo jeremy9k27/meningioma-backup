@@ -2,6 +2,23 @@ import numpy as np
 from ants import image_read
 from preprocessing.utils import lsdir
 
+def get_seg_roi_key():
+    """Returns a dict mapping int keys to corresponding segmentation rois."""
+    return {
+        1: 'Enhancing tumor',
+        2: 'Other tumor',
+        3: 'Necrotic tumor',
+        4: 'Edema',
+        5: 'Susceptibility',
+        6: 'Resitricted diffusion',
+        7: 'Normal-appearing white matter (NAWM)',
+        13: 'Enhancing tumor + Necrotic tumor',
+        15: 'Enhancing tumor + Susceptibility',
+        16: 'Enhancing tumor + Resitricted diffusion',
+        156: 'Enhancing tumor + Susceptibility + Resitricted diffusion',
+        22: 'Whole tumor mask',
+    }
+
 def get_segs(subject, seg_dir, seg_paths, rois=[1, 3, 4, 5, 6]):
     """
     Given a subject ID number, returns volumetric segmentation mask for the specified region of interest (roi).

@@ -1,14 +1,19 @@
 # %%
 import os
 if not os.getcwd().endswith('code'): os.chdir('..')
-from deeplearning.utils import get_segs, get_mris
-from deeplearning.transforms import CenterOnTumor
+# custom functions
+from deeplearning.utils import get_segs, get_mris, get_seg_roi_key
+from deeplearning.transforms import CenterOnTumor, CubifyVolume
 from preprocessing.utils import lsdir, explore_3D_array_with_mask_contour
 from radiomics.utils import plot_data_split
+# PyTorch imports
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 import torch
+# standard libraries
 import pandas as pd
+import numpy as np
+# logging helpers
 from tqdm import tqdm
 from zlib import adler32
 import logging
@@ -34,14 +39,22 @@ class MeningiomaDataset(Dataset):
         """
         Parameters
         ----------
-        task_name (str): Name of the classification task to be performed. Must be a column in the labels file. Can be one of: ['Chr22q', 'MethylationSubgroup', 'Chr1p']
-        labels_file (str): Path to the CSV file containing the labels for each subject.
-        mri_dir (str): Directory containing the MRI images.
-        pulse_sequences (list): List of pulse sequences to include in the dataset.
-        seg_dir (str): Directory containing the segmentation masks. If None, no segmentation masks will be included in the dataset.
-        seg_rois (list): List of region of interest (roi) labels to extract from the segmentation masks.
-        transforms (torchvision.transforms.Compose): Composed list of custom transforms (designed to work on sample) to apply to the data.
-        output_dir (str): Directory to save the dataset to.
+        - task_name (str): Name of the classification task to be performed. Must be a column in the labels file. Can be one of: ['Chr22q', 'MethylationSubgroup', 'Chr1p']
+        - labels_file (str): Path to the CSV file containing the labels for each subject.
+        - mri_dir (str): Directory containing the MRI images.
+        - pulse_sequences (list): List of pulse sequences to include in the dataset.
+        - seg_dir (str): Directory containing the segmentation masks. If None, no segmentation masks will be included in the dataset.
+        - seg_rois (list): List of region of interest (roi) labels to extract from the segmentation masks.
+        - transforms (torchvision.transforms.Compose): Composed list of custom transforms (designed to work on sample) to apply to the data.
+        - output_dir (str): Directory to save the dataset to.
+
+        Sample dict keys
+        ----------------
+        - 'mris': a dictionary of volumetric images, where keys are the pulse sequence names, and values are PyTorch tensors
+        - 'label': an int encoding the biomarker label of the subject
+        - 'sub_id': an int encoding the subject ID
+        - 'session_type': a str providing the session type, e.g. 'brainlab' or 'presurgical'
+        - 'segs': a dictionary of volumetric image masks, where keys are the mask code (e.g. 22 for whole tumor), and values are binary PyTorch tensors
         """
         # store input arguments
         self.task_name = task_name
@@ -58,6 +71,7 @@ class MeningiomaDataset(Dataset):
         self.is_new_ds = not os.path.exists(self.output_dir)
         if self.is_new_ds: 
             os.makedirs(f"{self.output_dir}/items")
+            os.makedirs(f"{self.output_dir}/plots")
 
         # set up logging
         self.logger = logging.getLogger()
@@ -85,7 +99,7 @@ class MeningiomaDataset(Dataset):
         labels_df.index = labels_df['Subject Number']
         assert self.task_name in labels_df.columns, f"Task name {self.task_name} not found in labels file {self.labels_file}"
         labels_df = labels_df[labels_df[self.task_name].notna()]
-        self.labels = labels_df[self.task_name]
+        self.labels = labels_df[self.task_name].astype(int)
         self.num_classes = self.labels.nunique()
         self.labels_key = {0: 'Intact', 1: 'Lost'}
         if self.task_name == 'MethylationSubgroup':
@@ -126,9 +140,18 @@ class MeningiomaDataset(Dataset):
         for ps in self.pulse_sequences:
             subjects_set &= set(self.subjects_by_pulse_sequence[ps])
         self.subjects = sorted(list(subjects_set))
+        self.labels = self.labels[self.subjects]
         for session in self.subjects_by_session:
-            self.subjects_by_session[session] = sorted(list(set(self.subjects_by_session[session]) & subjects_set))
+            self.subjects_by_session[session] = set(self.subjects_by_session[session])
+            self.subjects_by_session[session] &= subjects_set
+            self.subjects_by_session[session] = sorted(list(self.subjects_by_session[session]))
         
+        # get lists of subjects from each class
+        self.subjects_by_class = {}
+        for k in self.labels_key.keys():
+            self.subjects_by_class[k] = self.labels.index[np.where(self.labels == k)[0]].values.tolist()
+
+        # logging
         if self.is_new_ds:
             self.logger.info(f"Number of subjects retrieved using above params: {len(self.subjects)}")
             self.logger.info(f"Subjects list: {self.subjects}")
@@ -142,13 +165,12 @@ class MeningiomaDataset(Dataset):
         return len(self.subjects)
 
     def __getitem__(self, idx):
-        if os.path.exists(f"{self.output_dir}/items/{idx}.pt"):
-            sample = torch.load(f"{self.output_dir}/items/{idx}.pt", weights_only=False)
+        # get subject ID
+        sub_id = self.subjects[idx]
+        if os.path.exists(f"{self.output_dir}/items/{sub_id}.pt"):
+            sample = torch.load(f"{self.output_dir}/items/{sub_id}.pt", weights_only=False)
             return sample
         else:
-            # get subject ID
-            sub_id = self.subjects[idx]
-
             # get session info
             session = lsdir(f'{self.mri_dir}/{sub_id}')[0]
             session_type = session.split('_')[-1].lower()
@@ -158,7 +180,7 @@ class MeningiomaDataset(Dataset):
             for k in mris.keys(): mris[k] = torch.from_numpy(mris[k])
                         
             # get label
-            label = self.labels[sub_id]
+            label = self.labels[sub_id].astype(int)
 
             # combine all info
             sample = {'mris': mris, 'label': label, 'sub_id': sub_id, 'session_type': session_type}
@@ -173,7 +195,7 @@ class MeningiomaDataset(Dataset):
             if self.transforms: sample = self.transforms(sample)
 
             # save sample to disk
-            torch.save(sample, f"{self.output_dir}/items/{idx}.pt")
+            torch.save(sample, f"{self.output_dir}/items/{sub_id}.pt")
 
             return sample
     
@@ -186,30 +208,61 @@ class MeningiomaDataset(Dataset):
         plot_data_split(self.labels[self.subjects].values.astype(int), title=f"All subjects {self.task_name}", output_file=f"{self.output_dir}/plots/data_split_all.png")
         plot_data_split(self.labels[self.subjects_by_session['brainlab']].values.astype(int), title=f"Brainlab subjects {self.task_name}", output_file=f"{self.output_dir}/plots/data_split_brainlab.png")
         plot_data_split(self.labels[self.subjects_by_session['presurgical']].values.astype(int), title=f"Presurgical subjects {self.task_name}", output_file=f"{self.output_dir}/plots/data_split_presurgical.png")
+        plot_data_split(self.labels[self.subjects_by_session['other']].values.astype(int), title=f"Other subjects {self.task_name}", output_file=f"{self.output_dir}/plots/data_split_other.png")
 
     def get_labels(self):
         return self.labels
+    
+    def get_labels_key(self):
+        """Returns a dictionary providing a key to understanding the given task's labels"""
+        return self.labels_key
+    
+    def get_seg_roi_key(self):
+        """Returns a dict mapping int keys to corresponding segmentation rois."""
+        return get_seg_roi_key()
+    
+    def get_sample_weights(self):
+        """
+        Returns an array of sample weights intended to be passed on to torch.utils.data.WeightedRandomSampler,
+        where weights are calculated as that sample's inverse class frequency.
+        """
+        y = self.labels.values.astype(int)
+        icf = 1/np.bincount(y)
+        return icf[y]
 
     def get_subjects(self):
         if self.seg_dir is not None:
             return self.subjects, self.subjects_with_mris, self.subjects_with_segs, self.subjects_with_labels
         return self.subjects, self.subjects_with_mris, self.subjects_with_labels
 
+    def get_subjects_by_session(self): return self.subjects_by_session
+    def get_subjects_by_class(self): return self.subjects_by_class
+    def get_subjects_by_pulse_sequence(self): return self.subjects_by_pulse_sequence
 
 if not os.getcwd().endswith('Meningioma'): os.chdir('..')
 
-txs = transforms.Compose([
-    CenterOnTumor(cube_size=96, margin=5, pad_size=60)
-])
+# txs = transforms.Compose([
+#     CenterOnTumor(cube_size=96, margin=5, pad_size=60)
+# ])
 
 ds = MeningiomaDataset(
     task_name='MethylationSubgroup',
     pulse_sequences=['t1_post'],
     seg_rois=[22],
-    transforms=txs
+    transforms=None
 )
 
-ds.precache()
+ds.plot_data_split()
+
+# ds.precache()
+
+# %%
+sample = ds[0]
+cubify = CubifyVolume(cube_size=240)
+sample_cube = cubify(sample)
+
+# %%
+explore_3D_array_with_mask_contour(sample_cube['mris']['t1_post'].numpy(), sample_cube['segs'][22].numpy())
 
 # %%
 for sample in tqdm(ds, total=len(ds)):
