@@ -1,4 +1,3 @@
-# %%
 import torch.nn as nn
 
 class BottleneckResid3d(nn.Module):
@@ -48,13 +47,13 @@ class CalabreseModel(nn.Module):
         for i, level in enumerate(layer_layout, 1):
             for block in range(level):
                 self.layers.append(BottleneckResid3d(input_channels=in_chan, num_filters=num_filters, kernel_size=kernel_size, dropout_rate=dropout_rate, activation=activation))
+                in_chan = num_filters
             self.layers.append(nn.MaxPool3d(kernel_size=2))
-            in_chan = num_filters
             num_filters = int(num_filters*2)
         # flatten and have final dense layer
         self.layers.append(nn.Flatten())
         # Calculate the number of input features for the linear layer
-        self.layers.append(nn.Linear(int(num_filters*(original_shape/(2**len(layer_layout)))**3), dense_features))
+        self.layers.append(nn.Linear(int(0.5*num_filters*(original_shape/(2**len(layer_layout)))**3), dense_features))
         self.layers.append(nn.LeakyReLU())
         self.layers.append(nn.Linear(dense_features, output_features))
         self.layers.append(nn.Sigmoid())
@@ -63,6 +62,7 @@ class CalabreseModel(nn.Module):
         for layer in self.layers:
             x = layer(x)
         return x
-        
-m = CalabreseModel()
-# %%
+    
+    def get_num_trainable_params(self):
+        trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        return trainable_params

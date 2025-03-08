@@ -3,12 +3,12 @@ import os
 if not os.getcwd().endswith('code'): os.chdir('..')
 # custom functions
 from deeplearning.utils import get_segs, get_mris, get_seg_roi_key
-from deeplearning.transforms import CenterOnTumor, CubifyVolume
-from preprocessing.utils import lsdir, explore_3D_array_with_mask_contour
+from preprocessing.utils import lsdir
 from radiomics.utils import plot_data_split
+from deeplearning.transforms import CenterOnTumor
 # PyTorch imports
-from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
+from torch.utils.data import Dataset, Subset, DataLoader, WeightedRandomSampler
 import torch
 # standard libraries
 import pandas as pd
@@ -148,7 +148,7 @@ class MeningiomaDataset(Dataset):
         
         # get lists of subjects from each class
         self.subjects_by_class = {}
-        for k in self.labels_key.keys():
+        for k in self.labels_key:
             self.subjects_by_class[k] = self.labels.index[np.where(self.labels == k)[0]].values.tolist()
 
         # logging
@@ -177,7 +177,7 @@ class MeningiomaDataset(Dataset):
 
             # get mris
             mris = get_mris(subject_mri_dir=f'{self.mri_dir}/{sub_id}/{session}', pulse_sequences=self.pulse_sequences)
-            for k in mris.keys(): mris[k] = torch.from_numpy(mris[k])
+            for k in mris: mris[k] = torch.from_numpy(mris[k])
                         
             # get label
             label = self.labels[sub_id].astype(int)
@@ -188,7 +188,7 @@ class MeningiomaDataset(Dataset):
             # get segmentations if desired
             if self.seg_dir is not None:
                 segs = get_segs(subject=sub_id, seg_dir=self.seg_dir, seg_paths=self.seg_paths, rois=self.seg_rois)
-                for k in segs.keys(): segs[k] = torch.from_numpy(segs[k])
+                for k in segs: segs[k] = torch.from_numpy(segs[k])
                 sample['segs'] = segs
             
             # apply transforms if desired
@@ -230,53 +230,105 @@ class MeningiomaDataset(Dataset):
         icf = 1/np.bincount(y)
         return icf[y]
 
-    def get_subjects(self):
+    def get_all_subject_lists(self):
         if self.seg_dir is not None:
             return self.subjects, self.subjects_with_mris, self.subjects_with_segs, self.subjects_with_labels
         return self.subjects, self.subjects_with_mris, self.subjects_with_labels
-
+    
+    def get_hash(self): return self.hash
+    def get_subjects(self): return self.subjects
     def get_subjects_by_session(self): return self.subjects_by_session
     def get_subjects_by_class(self): return self.subjects_by_class
     def get_subjects_by_pulse_sequence(self): return self.subjects_by_pulse_sequence
 
-if not os.getcwd().endswith('Meningioma'): os.chdir('..')
+def get_sample_weights(y):
+    """
+    Calculates the inverse class frequencies of all classes appearing in y, 
+    then returns how much weight to put on each sample in y in order to obtain balanced classes when 
+    using a WeightedRandomSampler equipped with those weights.
+    """
+    icf = 1/np.bincount(y.astype(int))
+    return icf[y]
 
-# txs = transforms.Compose([
-#     CenterOnTumor(cube_size=96, margin=5, pad_size=60)
-# ])
+def get_proper_indices(full_list, subset_list):
+    """
+    Because the Meningioma dataset is indexed via something like e.g. range(len(ds)),
+    but we have metadata on subjects based on their subject ID number, we have this function to find the appropriate
+    indices of subject IDS as they exist in the Meningioma ds.
 
-# ds = MeningiomaDataset(
-#     task_name='MethylationSubgroup',
-#     pulse_sequences=['t1_post'],
-#     seg_rois=[22],
-#     transforms=None
-# )
+    Parameters
+    ----------
+    full_list: is a list of subject IDs as they appear in the full Meningioma ds
+    subset_list: is a list of subject IDs we care about, and want the indices where they appear in the full_list.
 
-# ds.plot_data_split()
+    Returns
+    -------
+    A list of length len(subset_list) providing the indices where those subject IDs in subset_list appear in full_list
+    """
+    proper_idxs = []
+    for element in subset_list:
+        proper_idxs.append(full_list.index(element))
+    return proper_idxs
 
-ds2 = MeningiomaDataset(
-    task_name='Chr22q',
-    pulse_sequences=['t1_post'],
-    seg_rois=[22],
-    transforms=None
-)
+def create_dataloaders(ds, bs=10, train_prop=0.8, independent_test_set=True, seed=0):
+    """
+    Given a Meningioma dataset object, this constructs training, validation, and test set dataloaders,
+    returning them in a dictionary. 
+    """
+    np.random.seed(seed)
+    subs_by_class = ds.get_subjects_by_class()
 
-# ds.precache()
+    if independent_test_set:
+        # Split train&val vs test by session type
+        subs_by_sess = ds.get_subjects_by_session()
+        train_val_sub_IDs = subs_by_sess['brainlab']
+        test_sub_IDs = subs_by_sess['presurgical'] + subs_by_sess['other']
+    else:
+        # Split train&val vs test stratified by class
+        train_val_sub_IDs = []
+        test_sub_IDs = []
+        for k in subs_by_class:
+            valid_sub_IDs = subs_by_class[k]
+            np.random.shuffle(valid_sub_IDs)
+            divider = int(round(0.8*len(valid_sub_IDs)))
+            train_val_sub_IDs.extend(valid_sub_IDs[:divider])
+            test_sub_IDs.extend(valid_sub_IDs[divider:-1])
+        np.random.shuffle(train_val_sub_IDs)
 
-# %%
-sample = ds[0]
-cubify = CubifyVolume(cube_size=240)
-sample_cube = cubify(sample)
+    # Stratified train vs val split by class
+    train_sub_IDs = []
+    val_sub_IDs = []
+    for k in subs_by_class:
+        valid_sub_IDs = sorted(list((set(train_val_sub_IDs) & set(subs_by_class[k]))))
+        np.random.shuffle(valid_sub_IDs)
+        train_val_divider = int(round(train_prop*len(valid_sub_IDs)))
+        train_sub_IDs.extend(valid_sub_IDs[:train_val_divider])
+        val_sub_IDs.extend(valid_sub_IDs[train_val_divider:-1])
+    
+    np.random.shuffle(train_sub_IDs)
+    train_labels = ds.get_labels()[train_sub_IDs]
+    train_sample_weights = get_sample_weights(train_labels)
 
-# %%
-explore_3D_array_with_mask_contour(sample_cube['mris']['t1_post'].numpy(), sample_cube['segs'][22].numpy())
+    subs = ds.get_subjects()
+    train_idxs = get_proper_indices(full_list=subs, subset_list=train_sub_IDs)
+    val_idxs = get_proper_indices(full_list=subs, subset_list=val_sub_IDs)
+    test_idxs = get_proper_indices(full_list=subs, subset_list=test_sub_IDs)
 
-# %%
-for sample in tqdm(ds, total=len(ds)):
-    assert 'mris' in sample.keys()
-    assert 'label' in sample.keys()
-    assert 'sub_id' in sample.keys()
-    assert 'session_type' in sample.keys()
-    assert 'segs' in sample.keys()
+    idxs_dict = {'train': train_idxs, 'val': val_idxs, 'test': test_idxs}
+    dataloaders_dict = {}
+    for ds_idxs in idxs_dict:
+        subset_ds = Subset(ds, idxs_dict[ds_idxs])
+        sampler = WeightedRandomSampler(train_sample_weights, len(train_sample_weights), replacement=True) if ds_idxs == 'train' else None
+        dataloaders_dict[ds_idxs] = DataLoader(subset_ds, batch_size=bs, sampler=sampler, pin_memory=True)
 
-# %%
+    return dataloaders_dict
+
+def stack_volumes(volumes):
+    """
+    Given a BATCHED dictionary of volumes, e.g. batched_sample['mris'], iterate thru all available volumes and stack them in PyTorch's channel dimension (1)
+    Return the stacked tensor.
+    """
+    list_of_volumes = []
+    for v in volumes:
+        list_of_volumes.append(volumes[v])
+    return torch.stack(list_of_volumes, 1)
