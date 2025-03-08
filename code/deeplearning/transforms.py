@@ -1,5 +1,22 @@
 import torch
 from torch.nn.functional import pad, interpolate
+from torchvision import transforms
+
+class Normalize(object):
+    """
+    Wrapper for torchvision.transforms.Normalize fn to work with our Meningioma samples
+    """
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(mean={self.mean}, std={self.std})"
+    
+    def __call__(self, sample):
+        mris = sample['mris']
+        for k in mris: mris[k] = transforms.Normalize(mean=self.mean, std=self.std)
+        return sample
 
 class CubifyVolume(object):
     """

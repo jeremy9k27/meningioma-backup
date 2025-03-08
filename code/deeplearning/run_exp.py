@@ -119,19 +119,24 @@ def train(model, optimizer, criterion, data, epochs=40):
 while not os.getcwd().endswith('Meningioma'): os.chdir('..')
 DEVICE = torch.device(f'cuda:2' if torch.cuda.is_available() else 'cpu')
 OUTPUT_DIR = 'results/deeplearning/debugging'
+SEED = 0
+torch.manual_seed(SEED)  # Set the seed for CPU random number generators
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(SEED)  # Set the seed for GPU random number generators
 
 # Create dataset, and then dataloaders
 ds = MeningiomaDataset(
     task_name='Chr22q',
-    pulse_sequences=['t1_post', 'adc'],
+    pulse_sequences=['t1_post', 'flair', 'adc'],
     seg_rois=[22],
     transforms=transforms.Compose([
+        transforms.Normalize(mean=[0], std=[1]),
         CenterOnTumor(cube_size=96, margin=5, pad_size=60),
     ])
 )
 ds.precache()
 ds.plot_data_split()
-dataloaders = create_dataloaders(ds)
+dataloaders = create_dataloaders(ds, seed=SEED)
 
 # Initialize model, optimizer, and loss fn
 model = CalabreseModel(input_channels=2).to(DEVICE)
