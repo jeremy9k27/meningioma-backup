@@ -2,7 +2,7 @@
 import os
 while not os.getcwd().endswith('code'): os.chdir('..')
 from preprocessing.utils import explore_3D_array_with_mask_contour
-from deeplearning.transforms import CenterOnTumor
+from deeplearning.transforms import CenterOnTumor, Normalize
 from deeplearning.prep_data import MeningiomaDataset, create_dataloaders, stack_volumes
 from deeplearning.models import CalabreseModel
 from deeplearning.metrics import *
@@ -130,7 +130,7 @@ ds = MeningiomaDataset(
     pulse_sequences=['t1_post', 'flair', 'adc'],
     seg_rois=[22],
     transforms=transforms.Compose([
-        transforms.Normalize(mean=[0], std=[1]),
+        Normalize(mean=[0], std=[1]),
         CenterOnTumor(cube_size=96, margin=5, pad_size=60),
     ])
 )

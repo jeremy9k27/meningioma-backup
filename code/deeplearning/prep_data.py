@@ -1,4 +1,3 @@
-# %%
 import os
 if not os.getcwd().endswith('code'): os.chdir('..')
 # custom functions
