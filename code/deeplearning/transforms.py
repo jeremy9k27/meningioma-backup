@@ -9,13 +9,15 @@ class Normalize(object):
     def __init__(self, mean, std):
         self.mean = mean
         self.std = std
+        self.tx = transforms.Normalize(mean=self.mean, std=self.std)
 
     def __repr__(self):
         return f"{self.__class__.__name__}(mean={self.mean}, std={self.std})"
     
     def __call__(self, sample):
         mris = sample['mris']
-        for k in mris: mris[k] = transforms.Normalize(mean=self.mean, std=self.std)
+        for k in mris: 
+            mris[k] = self.tx(mris[k])
         return sample
 
 class CubifyVolume(object):
