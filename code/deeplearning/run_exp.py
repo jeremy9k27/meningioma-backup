@@ -139,7 +139,7 @@ ds.plot_data_split()
 dataloaders = create_dataloaders(ds, seed=SEED)
 
 # Initialize model, optimizer, and loss fn
-model = CalabreseModel(input_channels=2).to(DEVICE)
+model = CalabreseModel(input_channels=3).to(DEVICE)
 optimizer = optim.Adam(model.parameters())
 criterion = nn.BCELoss()
 
