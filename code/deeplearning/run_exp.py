@@ -3,7 +3,7 @@ import os
 while not os.getcwd().endswith('code'): os.chdir('..')
 from preprocessing.utils import explore_3D_array_with_mask_contour
 from deeplearning.transforms import CenterOnTumor, Normalize
-from deeplearning.prep_data import MeningiomaDataset, create_dataloaders, stack_volumes
+from deeplearning.prep_data import MeningiomaDataset, create_dataloaders, create_only_train_val_dataloaders, stack_volumes
 from deeplearning.models import CalabreseModel
 from deeplearning.metrics import *
 from sklearn.metrics import average_precision_score, roc_auc_score
@@ -14,6 +14,15 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms
 import pandas as pd
 from tqdm import tqdm
+
+# Set up directory structures and GPU/CPU/MPS device
+OUTPUT_DIR = 'results/deeplearning/debugging'
+while not os.getcwd().endswith('Meningioma'): os.chdir('..')
+DEVICE = torch.device(f'cuda:2' if torch.cuda.is_available() else 'cpu')
+SEED = 0
+torch.manual_seed(SEED)  # Set the seed for CPU random number generators
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(SEED)  # Set the seed for GPU random number generators
 
 def evaluate(model, criterion, dataloader):
     # Setup for evaluation
@@ -110,19 +119,10 @@ def train(model, optimizer, criterion, data, epochs=40):
         if val_metrics['balancedacc'] > best_val_balanced_acc:
             torch.save(model.state_dict(), f'{OUTPUT_DIR}/model_weights/best_val_balancedacc.pt')
             best_val_loss = val_metrics['balancedacc']
-    
+        
     # Close logging
     tensorboard_writer.flush()
     tensorboard_writer.close()
-
-# Set up directory structures and GPU/CPU/MPS device
-while not os.getcwd().endswith('Meningioma'): os.chdir('..')
-DEVICE = torch.device(f'cuda:2' if torch.cuda.is_available() else 'cpu')
-OUTPUT_DIR = 'results/deeplearning/debugging'
-SEED = 0
-torch.manual_seed(SEED)  # Set the seed for CPU random number generators
-if torch.cuda.is_available():
-    torch.cuda.manual_seed(SEED)  # Set the seed for GPU random number generators
 
 # Create dataset, and then dataloaders
 ds = MeningiomaDataset(
@@ -136,11 +136,11 @@ ds = MeningiomaDataset(
 )
 ds.precache()
 ds.plot_data_split()
-dataloaders = create_dataloaders(ds, seed=SEED)
+dataloaders = create_dataloaders(ds, bs=4, independent_test_set=True, seed=SEED)
 
 # Initialize model, optimizer, and loss fn
 model = CalabreseModel(input_channels=3).to(DEVICE)
-optimizer = optim.Adam(model.parameters())
+optimizer = optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.001)
 criterion = nn.BCELoss()
 
 # %%
@@ -160,4 +160,6 @@ for weights in ['best_val_loss', 'best_val_balancedacc']:
             preds_dir = f'{OUTPUT_DIR}/predictions/{weights}'
             if not os.path.exists(preds_dir): os.makedirs(preds_dir)
             preds_df.to_csv(f'{preds_dir}/{k}_preds.csv', index=False)
+
+eval_dict
 # %%

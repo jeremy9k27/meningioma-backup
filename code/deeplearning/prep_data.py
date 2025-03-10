@@ -27,10 +27,10 @@ class MeningiomaDataset(Dataset):
     def __init__(
         self, 
         task_name, 
-        labels_file='data/labels/MeningiomaBiomarkerData.csv', 
-        mri_dir='data/preprocessing/output/7b_COMPLETED_PREPROCESSED', 
+        labels_file='/data/lawrence/meningioma_data/labels/MeningiomaBiomarkerData.csv', 
+        mri_dir='/data/lawrence/meningioma_data/preprocessing/output/7b_COMPLETED_PREPROCESSED', 
         pulse_sequences=['T1_POST', 'FLAIR', 'ADC'], 
-        seg_dir='data/all_smooth_segs_02-08-25/', 
+        seg_dir='/data/lawrence/meningioma_data/all_smooth_segs_02-08-25/', 
         seg_rois=[1, 3, 4, 5, 6, 22], 
         transforms=None,
         output_dir='data/pytorch_datasets'
@@ -314,6 +314,59 @@ def create_dataloaders(ds, bs=10, train_prop=0.8, independent_test_set=True, see
     test_idxs = get_proper_indices(full_list=subs, subset_list=test_sub_IDs)
 
     idxs_dict = {'train': train_idxs, 'val': val_idxs, 'test': test_idxs}
+    dataloaders_dict = {}
+    for ds_idxs in idxs_dict:
+        subset_ds = Subset(ds, idxs_dict[ds_idxs])
+        sampler = WeightedRandomSampler(train_sample_weights, len(train_sample_weights), replacement=True) if ds_idxs == 'train' else None
+        dataloaders_dict[ds_idxs] = DataLoader(subset_ds, batch_size=bs, sampler=sampler, pin_memory=True)
+
+    return dataloaders_dict
+
+def create_only_train_val_dataloaders(ds, bs=10, train_prop=0.8, independent_test_set=True, seed=0):
+    """
+    Given a Meningioma dataset object, this constructs training and validation dataloaders,
+    returning them in a dictionary. 
+    """
+    np.random.seed(seed)
+    subs_by_class = ds.get_subjects_by_class()
+
+    if independent_test_set:
+        # Split train&val vs test by session type
+        subs_by_sess = ds.get_subjects_by_session()
+        train_val_sub_IDs = subs_by_sess['brainlab']
+        test_sub_IDs = subs_by_sess['presurgical'] + subs_by_sess['other']
+    else:
+        # Split train&val vs test stratified by class
+        train_val_sub_IDs = []
+        test_sub_IDs = []
+        for k in subs_by_class:
+            valid_sub_IDs = subs_by_class[k]
+            np.random.shuffle(valid_sub_IDs)
+            divider = int(round(0.8*len(valid_sub_IDs)))
+            train_val_sub_IDs.extend(valid_sub_IDs[:divider])
+            test_sub_IDs.extend(valid_sub_IDs[divider:-1])
+        np.random.shuffle(train_val_sub_IDs)
+
+    # Stratified train vs val split by class
+    train_sub_IDs = []
+    val_sub_IDs = []
+    for k in subs_by_class:
+        valid_sub_IDs = sorted(list((set(train_val_sub_IDs) & set(subs_by_class[k]))))
+        np.random.shuffle(valid_sub_IDs)
+        train_val_divider = int(round(train_prop*len(valid_sub_IDs)))
+        train_sub_IDs.extend(valid_sub_IDs[:train_val_divider])
+        val_sub_IDs.extend(valid_sub_IDs[train_val_divider:-1])
+    
+    np.random.shuffle(train_sub_IDs)
+    train_labels = ds.get_labels()[train_sub_IDs]
+    train_sample_weights = get_sample_weights(train_labels)
+
+    subs = ds.get_subjects()
+    train_idxs = get_proper_indices(full_list=subs, subset_list=train_sub_IDs)
+    val_idxs = get_proper_indices(full_list=subs, subset_list=val_sub_IDs)
+    test_idxs = get_proper_indices(full_list=subs, subset_list=test_sub_IDs)
+
+    idxs_dict = {'train': train_idxs, 'val': val_idxs + test_idxs}
     dataloaders_dict = {}
     for ds_idxs in idxs_dict:
         subset_ds = Subset(ds, idxs_dict[ds_idxs])
