@@ -27,10 +27,10 @@ class MeningiomaDataset(Dataset):
     def __init__(
         self, 
         task_name, 
-        labels_file='/data/lawrence/meningioma_data/labels/MeningiomaBiomarkerData.csv', 
-        mri_dir='/data/lawrence/meningioma_data/preprocessing/output/7b_COMPLETED_PREPROCESSED', 
+        labels_file='/home/data/lawrence/meningioma_data/labels/MeningiomaBiomarkerData.csv', 
+        mri_dir='/home/data/lawrence/meningioma_data/preprocessing/output/7b_COMPLETED_PREPROCESSED', 
         pulse_sequences=['T1_POST', 'FLAIR', 'ADC'], 
-        seg_dir='/data/lawrence/meningioma_data/all_smooth_segs_02-08-25/', 
+        seg_dir='/home/data/lawrence/meningioma_data/all_smooth_segs_02-08-25/', 
         seg_rois=[1, 3, 4, 5, 6, 22], 
         transforms=None,
         output_dir='data/pytorch_datasets'
