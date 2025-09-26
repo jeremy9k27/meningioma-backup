@@ -247,3 +247,11 @@ MeningiomaNotes.md
 
 # Scan Type Cleanup app
 code/scan_type_cleanup_ui/static
+
+# Large pyradiomics files
+code/pyradiomics_jeremy/stats1_avg_ridge_with_coeffs.pkl
+code/pyradiomics_jeremy/stats1_max_ridge_with_coeffs.pkl
+code/pyradiomics_jeremy/efficientnet_max.csv
+code/pyradiomics_jeremy/wide_efficientnet_results.csv
+code/pyradiomics_jeremy/efficientnet_avg.csv
+code/pyradiomics_jeremy/efficientnet_results.csv
