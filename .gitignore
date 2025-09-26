@@ -227,6 +227,12 @@ rsconnect/
 # data directory
 data/
 
+# Dataset folders
+BraTS-MEN-Train/
+ASNR-MICCAI-BraTS2023-MEN-Challenge-ValidationData/
+results_new/
+code/deeplearning/weights/
+
 # results directory
 results/
 

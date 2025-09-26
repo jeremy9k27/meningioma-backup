@@ -17,7 +17,35 @@ class Normalize(object):
     def __call__(self, sample):
         mris = sample['mris']
         for k in mris: 
+            print("before", mris[k].mean(), mris[k].std())
             mris[k] = self.tx(mris[k])
+            print("after", mris[k].mean(), mris[k].std())
+        return sample
+
+class Normalize2(object):
+    """
+    i think normalize was implemented incorrectly and was essentially a no-op
+    init and repr dunders seem meaningless now?
+    """
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+        self.tx = transforms.Normalize(mean=self.mean, std=self.std)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(mean={self.mean}, std={self.std})"
+    
+    def __call__(self, sample):
+        mris = sample['mris']
+        for k in mris:
+            
+            # Get THIS tensor's actual statistics
+            actual_mean = mris[k].mean()
+            actual_std = mris[k].std()
+            
+            # Normalize to mean=0, std=1
+            mris[k] = (mris[k] - actual_mean) / actual_std
+
         return sample
 
 class CubifyVolume(object):
@@ -60,16 +88,18 @@ class CubifyVolume(object):
         # pad all available volumes to yield a cube of shape pad_up_size x pad_up_size x pad_up_size
         for k in mris.keys():
             mris[k] = pad(mris[k], pad=padding)
-        for k in segs.keys():
-            segs[k] = pad(segs[k], pad=padding)
+        if segs:
+            for k in segs.keys():
+                segs[k] = pad(segs[k], pad=padding)
         
         assert torch.all(torch.tensor(mris[pulse_seq].shape) == pad_up_size), "An error occurred during the padding step. Debug padding?"
 
         # resize to be of shape self.cube_size x self.cube_size x self.cube_size
         for k in mris.keys():
             mris[k] = interpolate(mris[k].unsqueeze(0).unsqueeze(0), size=(self.cube_size,)*3, mode='trilinear').squeeze()
-        for k in segs.keys():
-            segs[k] = interpolate(segs[k].unsqueeze(0).unsqueeze(0).float(), size=(self.cube_size,)*3, mode='nearest-exact').squeeze()
+        if segs:
+            for k in segs.keys():
+                segs[k] = interpolate(segs[k].unsqueeze(0).unsqueeze(0).float(), size=(self.cube_size,)*3, mode='nearest-exact').squeeze()
 
         assert torch.all(torch.tensor(mris[pulse_seq].shape) == torch.tensor(self.cube_size)), "An error occurred during the interpolation step. Debug interpolation?"
 
@@ -144,3 +174,40 @@ class CenterOnTumor(object):
         sample['segs'] = segs
 
         return sample
+
+
+import torchvision.transforms.functional as F
+
+def rotate_3d(tensor, angle):
+    # tensor shape: [channels, depth, height, width]
+    # Rotate each depth slice individually
+    rotated_slices = []
+    for d in range(tensor.shape[1]):  # Loop through depth dimension
+        slice_2d = tensor[:, d, :, :]  # [channels, height, width]
+        rotated_slice = F.rotate(slice_2d, angle)
+        rotated_slices.append(rotated_slice)
+    return torch.stack(rotated_slices, dim=1)
+    
+class DetRotation3D:
+    '''
+    this gets called in the training loop, not to be used as part of transform pipeline
+    '''
+    def __init__(self, degrees=15):
+        self.degrees = degrees
+    
+    def __call__(self, X_batch, subject_ids, epoch):
+
+        augmented_batch = []
+        for i, subject_id in enumerate(subject_ids):
+            
+            sample = X_batch[i]  # Shape: [channels, depth, height, width]
+            
+            # Create deterministic seed
+            seed = hash(f"{subject_id}_{epoch}") % (2**32)
+            torch.manual_seed(seed)
+            
+            angle = torch.randint(-self.degrees, self.degrees, (1,)).item()
+            rotated_sample = rotate_3d(sample, angle)  # You'll need this function
+            augmented_batch.append(rotated_sample)
+        
+        return torch.stack(augmented_batch)

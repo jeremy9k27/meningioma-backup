@@ -1,8 +1,12 @@
 # %%
 import os
+if os.getcwd().endswith('meningioma'):
+    os.chdir('code')
 while not os.getcwd().endswith('code'): os.chdir('..')
+import sys
+sys.path.append(os.getcwd())
 from preprocessing.utils import explore_3D_array_with_mask_contour
-from deeplearning.transforms import CenterOnTumor, Normalize
+from deeplearning.transforms import *
 from deeplearning.prep_data import MeningiomaDataset, create_dataloaders, create_only_train_val_dataloaders, stack_volumes
 from deeplearning.models import CalabreseModel
 from deeplearning.metrics import *
@@ -16,8 +20,9 @@ import pandas as pd
 from tqdm import tqdm
 
 # Set up directory structures and GPU/CPU/MPS device
-OUTPUT_DIR = 'results/deeplearning/debugging'
-while not os.getcwd().endswith('Meningioma'): os.chdir('..')
+OUTPUT_DIR = 'results_new/deeplearning/debugging'
+print(os.getcwd())
+while not os.getcwd().endswith('meningioma'): os.chdir('..')
 DEVICE = torch.device(f'cuda:2' if torch.cuda.is_available() else 'cpu')
 SEED = 0
 torch.manual_seed(SEED)  # Set the seed for CPU random number generators
@@ -130,7 +135,7 @@ ds = MeningiomaDataset(
     pulse_sequences=['t1_post', 'flair', 'adc'],
     seg_rois=[22],
     transforms=transforms.Compose([
-        Normalize(mean=[0], std=[1]),
+        Normalize2(mean=[0], std=[1]),
         CenterOnTumor(cube_size=96, margin=5, pad_size=60),
     ])
 )
@@ -145,6 +150,7 @@ criterion = nn.BCELoss()
 
 # %%
 # Train
+print(dataloaders.items())
 train(model, optimizer, criterion, dataloaders)
 
 # %%
@@ -161,5 +167,5 @@ for weights in ['best_val_loss', 'best_val_balancedacc']:
             if not os.path.exists(preds_dir): os.makedirs(preds_dir)
             preds_df.to_csv(f'{preds_dir}/{k}_preds.csv', index=False)
 
-eval_dict
+print(eval_dict)
 # %%

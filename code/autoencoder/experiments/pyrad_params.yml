@@ -1,0 +1,19 @@
+imageType:
+  Original: {}
+
+featureClass:
+  firstorder:
+    - Mean
+    #- Variance
+    - Skewness
+    - Kurtosis
+    - Energy
+    - Entropy
+  glrlm:
+    - ShortRunEmphasis
+    - LongRunEmphasis
+    - GrayLevelNonUniformity
+  glszm:
+    #- ZonePercentage
+    #- SizeZoneNonUniformity
+    - GrayLevelNonUniformity

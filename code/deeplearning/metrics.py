@@ -1,5 +1,11 @@
 import numpy as np
 
+def basic_accuracy(y_true, y_pred):
+    y_pred = (y_pred > 0.5).int()
+    correct = (y_pred == y_true.int()).sum()
+    total = y_true.numel()
+    return correct.float() / total
+
 def balanced_accuracy(y_true, y_pred):
     y_pred = (y_pred > 0.5).int()
     tp = ((y_true == 1) & (y_pred == 1)).sum()
