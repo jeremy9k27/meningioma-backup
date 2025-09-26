@@ -254,4 +254,5 @@ code/pyradiomics_jeremy/stats1_max_ridge_with_coeffs.pkl
 code/pyradiomics_jeremy/efficientnet_max.csv
 code/pyradiomics_jeremy/wide_efficientnet_results.csv
 code/pyradiomics_jeremy/efficientnet_avg.csv
-code/pyradiomics_jeremy/efficientnet_results.csv
+code/pyradiomics_jeremy/efficientnet_results.csvcode/pyradiomics_jeremy/*.pkl
+code/pyradiomics_jeremy/*.csv
