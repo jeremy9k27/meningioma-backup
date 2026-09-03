@@ -10,33 +10,60 @@ from deeplearning.transforms import *
 from deeplearning.prep_data import MeningiomaDataset, create_dataloaders, create_only_train_val_dataloaders, create_only_train_val_dataloaders_loocv, stack_volumes
 from deeplearning.models import *
 from deeplearning.metrics import *
+from deeplearning.utils import *
 from sklearn.metrics import average_precision_score, roc_auc_score
 import torch
 import torch.nn as nn
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
+from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
 from torchvision import transforms
 import pandas as pd
 from tqdm import tqdm
 from datetime import datetime
 import json
+import copy
+import random
 
+model_type = 'not_pretrained'
+unfreeze = False
+save_weights = False
+aug = True
+weights_dest = '22q/22q_unfreeze_constant_fold'
+task = '1p'
+scheduler_type = 'plateau'
+lr = 0.0001
+csv_file = 'results_new/deeplearning/debugging/lrs_val_loss.csv'
+early_stopper_patience = 50
+num_epochs = 200
+bs = 4
+SEED = 1
+
+
+# when unfreezing, early_stopper_patience governs 
+#just changed lr plateau paticne from 4 to 9
 
 # Set up directory structures and GPU/CPU/MPS device
 timestamp = datetime.now().strftime('%Y_%m_%d_%H_%M_%s')
-OUTPUT_DIR = f'results_new/deeplearning/debugging/not_pretrained/run_{timestamp}'
+OUTPUT_DIR = f'results_new/deeplearning/debugging/{model_type}/run_{timestamp}'
 print(os.getcwd())
 while not os.getcwd().endswith('meningioma'): os.chdir('..')
-DEVICE = torch.device(f'cuda:2' if torch.cuda.is_available() else 'cpu')
-SEED = 0
-torch.manual_seed(SEED)  # Set the seed for CPU random number generators
-if torch.cuda.is_available():
-    torch.cuda.manual_seed(SEED)  # Set the seed for GPU random number generators
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+DEVICE = torch.device(f'cuda:1' if torch.cuda.is_available() else 'cpu')
 
 
-def evaluate(model, criterion, dataloader, encoder = None):
+def set_seeds():
+    torch.manual_seed(SEED)  # Set the seed for CPU random number generators
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(SEED)  # Set the seed for GPU random number generators
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    np.random.seed(SEED)
+    random.seed(SEED)
+
+
+
+
+def evaluate_on_unseen(model, criterion, dataloader, encoder = None):
 
     # Setup for evaluation
     model.eval()
@@ -71,38 +98,75 @@ def evaluate(model, criterion, dataloader, encoder = None):
     return preds
 
 
-def train(model, optimizer, criterion, data, fold, epochs=40, encoder = None):
+def train(model, optimizer, early_stopper, scheduler, criterion, data, fold, epochs, unfreeze = False):
 
-    # Set up logging and metrics
     tensorboard_writer = SummaryWriter(log_dir=f'{OUTPUT_DIR}/tensorboard_logs/{fold}')
     
-    best_val_balanced_acc = 0.
-    best_val_loss = float('inf')
-    # Loop thru all epochs
-    #aug_transform = DetRotation3D(degrees=24)
-    for epoch in tqdm(range(epochs), desc='Epoch', total=epochs):
-        # Setup for the epoch
+    to_unfreeze = False
 
-        if epoch == -1:
+    cycle_best_loss = [99, 99, 99]
+    cycle_best_metrics = [{}, {}, {}]
+    cycle = 0
+    
+    # Loop thru all epochs
+    aug_transform = CalabreseRotation3D()
+    CenterObj = CenterOnTumor(cube_size=96, margin=5, pad_size=60)
+    BatchedCenterObj = BatchedCenterOnTumor(CenterObj)
+    for epoch in tqdm(range(epochs), desc='Epoch', total=epochs):
+
+        if scheduler_type == "cosine": 
+            cycle = epoch // 20
+            if epoch in [20, 40]:
+                cycle_best_loss[cycle] = 99
+                optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=0.001) # do i just set lr back to init or do i reinit optimizer
+                scheduler = CosineAnnealingLR(optimizer, T_max=20, eta_min=1e-6)
+
+
+        if to_unfreeze:
             # Unfreeze encoder
+            print("unfroze")
+            best_val_loss = 99 #forces us to save a model AFTER unfreezing
             for param in model.encoder.parameters():
-                param.requires_grad = True
+                param.requires_grad = True        
             
-                    
-            optimizer = optim.AdamW([
-                            {'params': model.encoder.parameters(), 'lr': 0.00001},
-                            {'params': model.classifier.parameters(), 'lr': 0.0001}
-                        ], weight_decay=0.001)
+            optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=0.001)
+            if scheduler_type == "cosine":
+                scheduler = CosineAnnealingLR(optimizer, T_max=20, eta_min=1e-6)
+
+            elif scheduler_type == "plateau":
+                scheduler = ReduceLROnPlateau(
+                    optimizer, 
+                    mode='min',        
+                    factor=0.5,           # halve LR
+                    patience=20,
+                    min_lr=1e-7,          # don't go below this
+                ) 
+                        
+            
+            to_unfreeze = False
+            early_stopper = EarlyStopper(patience=early_stopper_patience*2)
         
 
         train_loss = 0.
         model.train()
         y_preds, y_trues = torch.tensor([]).to(DEVICE), torch.tensor([]).to(DEVICE)
+
         # Loop thru all batches
         for batch in tqdm(data['train'], desc='Batch', total=len(data['train']), position=1, leave=False):
             # Grab the batch data
+
+            if aug and random.random() > 0.9: batch = aug_transform(batch)
+            batch = BatchedCenterObj(batch)
             X_batch = stack_volumes(batch['mris']).to(DEVICE)
-            #X_batch_aug = aug_transform(X_batch, batch['sub_id'], epoch).to(DEVICE) 
+
+            # save for debugging
+            '''
+            tensor_np = X_batch[0][0].cpu().numpy()
+            print(tensor_np.shape)
+            nifti_img = nib.Nifti1Image(tensor_np, affine=np.eye(4))
+            nib.save(nifti_img, f"cal_eg.nii.gz")
+            '''
+
             y_batch = batch['label'].to(DEVICE)
             # Zero out the gradients
             optimizer.zero_grad()
@@ -111,8 +175,8 @@ def train(model, optimizer, criterion, data, fold, epochs=40, encoder = None):
             outputs = model(X_batch)
 
             # Keep track of predictions and true labels
-            y_preds = torch.cat((y_preds, outputs.squeeze(1)))
-            y_trues = torch.cat((y_trues, y_batch))
+            y_preds = torch.cat((y_preds, outputs.squeeze(1).detach()))
+            y_trues = torch.cat((y_trues, y_batch.detach()))
             # Backward pass
             loss = criterion(outputs.squeeze(1), y_batch.float())
             loss.backward()
@@ -130,8 +194,10 @@ def train(model, optimizer, criterion, data, fold, epochs=40, encoder = None):
             'auroc': roc_auc_score(y_trues.cpu().numpy(), y_preds.cpu().detach().numpy()),
             'tpr': true_positive_rate(y_trues, y_preds).item(),
             'fpr': false_positive_rate(y_trues, y_preds).item(),
-            'fdr': false_discovery_rate(y_trues, y_preds).item()
+            'fdr': false_discovery_rate(y_trues, y_preds).item(),
+            'lr': optimizer.param_groups[0]['lr'] 
         }
+    
 
         # Log metrics
         tensorboard_writer.add_scalars('Train', train_metrics, epoch)
@@ -145,11 +211,12 @@ def train(model, optimizer, criterion, data, fold, epochs=40, encoder = None):
         with torch.no_grad():
             for batch in data['val']:
                 # Grab the batch data (no augmentation for validation)
+                batch = BatchedCenterObj(batch)
                 X_batch = stack_volumes(batch['mris']).to(DEVICE)
                 y_batch = batch['label'].to(DEVICE)
                 
                 # Forward pass
-                outputs = model(X_batch)
+                outputs = model(X_batch)           
                 
                 # Keep track of predictions and true labels
                 val_y_preds = torch.cat((val_y_preds, outputs.squeeze(1)))
@@ -173,18 +240,61 @@ def train(model, optimizer, criterion, data, fold, epochs=40, encoder = None):
         # Log validation metrics
         tensorboard_writer.add_scalars('Validation', val_metrics, epoch)
         
-        # Track best validation performance (optional - for model saving)
-        if val_metrics['balancedacc'] > best_val_balanced_acc:
-            best_val_balanced_acc = val_metrics['balancedacc']
-        if val_metrics['loss'] < best_val_loss:
-            best_val_loss = val_metrics['loss']
-        
+        # Track best for current cycle
+        if val_metrics['loss'] < cycle_best_loss[cycle]:
+            if save_weights: torch.save(model.state_dict(), f"code/deeplearning/weights/{weights_dest}{fold}_cycle{cycle}")
+            cycle_best_metrics[cycle] = val_metrics
+            cycle_best_loss[cycle] = val_metrics['loss']
 
+
+        if scheduler is not None and scheduler_type == "plateau": 
+            scheduler.step(val_loss) 
+        if scheduler is not None and scheduler_type == "cosine":
+            scheduler.step()
+        if early_stopper.should_stop(val_loss):
+            if unfreeze:
+                print(f"Encoder to unfreeze at epoch {epoch+2}")
+                unfreeze = False
+                to_unfreeze = True
+            else:
+                print(f"Early stopping triggered at epoch {epoch+1}")
+                break
         
     # Close logging
     tensorboard_writer.flush()
     tensorboard_writer.close()
    
+    #save
+    state_dict = torch.load(f"code/deeplearning/weights/{weights_dest}{fold}_cycle{cycle}")
+    model.load_state_dict(state_dict)
+    model.eval()
+    final_val_preds = []
+    final_val_trues = []
+
+    with torch.no_grad():
+        for batch in data['val']:
+            # Grab the batch data (no augmentation for validation)
+            batch = BatchedCenterObj(batch)
+            X_batch = stack_volumes(batch['mris']).to(DEVICE)
+            y_batch = batch['label'].to(DEVICE)
+            
+            # Forward pass
+            outputs = model(X_batch).squeeze(1)
+
+            final_val_preds.append(outputs.cpu())
+            final_val_trues.append(y_batch.cpu())
+
+    final_val_preds = torch.cat(final_val_preds)
+    final_val_trues = torch.cat(final_val_trues)
+
+    print("Final validation predictions:")
+    print(final_val_preds)
+
+    print("Final validation true labels:")
+    print(final_val_trues)
+
+    
+    return cycle_best_metrics
 
 
 from sklearn.model_selection import StratifiedKFold
@@ -195,6 +305,8 @@ def kfold(ds: MeningiomaDataset, n_splits=5):
     all_trues = []
     all_ids = []
 
+    all_fold_metrics = []
+
     # Ensure dataset is fully loaded
     ds.precache()
     
@@ -204,127 +316,130 @@ def kfold(ds: MeningiomaDataset, n_splits=5):
     all_labels = [ds.get_labels().iloc[ds.get_subjects().index(sid)] for sid in subject_ids]
     
     # Create stratified k-fold splits
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=SEED)
 
     for fold, (train_idx, val_idx) in enumerate(skf.split(subject_ids, all_labels)):
+
+        set_seeds()
+
         print(f"\n--- K-Fold {fold+1}/{n_splits} ---")
         
         # Split train and val subject IDs
         train_ids = [subject_ids[i] for i in train_idx]
         val_ids = [subject_ids[i] for i in val_idx]
+
+        print(val_ids)
+        print(val_idx)
         
         print(f"Train subjects: {len(train_ids)}, Val subjects: {len(val_ids)}")
 
         # Create dataloaders from manual splits
         dataloaders = create_only_train_val_dataloaders_loocv(
             ds,
-            bs=4,
+            bs=bs,
             train_ids=train_ids,
             val_ids=val_ids
         )
 
-        model = CalabreseModelEncoder(dense_features = 6 ,input_channels=2, layer_layout=[1, 1, 2, 2], original_shape = 96, use_batch=False).to(DEVICE)
+        model = CalabreseModelEncoder(input_channels=2, layer_layout=[1, 1, 2, 2], original_shape = 96, use_batch=False).to(DEVICE)
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print(f"Parameters: {total_params}")
 
-        '''
-        Initialize new model + optimizer
+        
+        #Initialize new model 
+        
         full_model = CalabreseModelUNetSkip(input_channels=2, layer_layout=[1, 1, 2, 2], original_shape = 96, pyrad_targets=18, use_batch=False).to(DEVICE)
-        full_model.load_state_dict(torch.load('code/deeplearning/weights/seg_crossentropy.pth'))
-        model.encoder = full_model.encoder
-        del full_model
-        torch.cuda.empty_cache()
         
-        model.encoder.eval()
-        for param in model.encoder.parameters():
-            param.requires_grad = False
-        '''
+        if model_type == 'pretrained':
+            full_model.load_state_dict(torch.load('code/deeplearning/weights/unet.pth'))
+            model.encoder = full_model.encoder
+            del full_model
+            torch.cuda.empty_cache() 
+            
+            model.encoder.eval()
+            for param in model.encoder.parameters():
+                param.requires_grad = False  
+            
+             
+        optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=0.001)
+        early_stopper = EarlyStopper(patience=early_stopper_patience)
+        if unfreeze == True:
+            scheduler = None
+            optimizer = optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.001) #just use constant initial if unfreezing
+
+        elif scheduler_type == "constant": 
+            scheduler = None
         
+        elif scheduler_type == "cosine":
+            scheduler = CosineAnnealingLR(optimizer, T_max=20, eta_min=1e-6)
         
-        optimizer = optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.001)
+        elif scheduler_type == "plateau":
+            scheduler = ReduceLROnPlateau(
+                optimizer, 
+                mode='min',        
+                factor=0.5,           # halve LR
+                patience=4,
+                min_lr=1e-7,          # don't go below this
+            )  
+        else:
+            raise Exception("unkown lr scheduler")
+        
 
         criterion = nn.BCELoss()
 
-        # Train on fold training set
-        train(model, optimizer, criterion, dataloaders, fold, epochs = 20)
+        # Train on fold training set and return best val predictions
+        #preds_df = train(model, optimizer, criterion, dataloaders, fold, epochs = 100)
+        best_metrics = train(model, optimizer, early_stopper, scheduler, criterion, dataloaders, fold, unfreeze=unfreeze, epochs = num_epochs)
+        all_fold_metrics.append(best_metrics)
 
-        # Evaluate on fold validation set
-        preds_df = evaluate(model, criterion, dataloaders['val'])
+        # Evaluate on unseen data
+        #preds_df = evaluate(model, criterion, dataloaders['val'])
 
-        # Accumulate predictions
-        all_preds.extend(preds_df['y_pred'].tolist())
-        all_trues.extend(preds_df['y'].tolist())
-        all_ids.extend(preds_df['SubjectID'].tolist())
+        del model
+        del optimizer
+        torch.cuda.empty_cache()
 
-    # After K-Fold CV
-    # Convert predictions and true labels to tensors
-    y_pred_binary = (torch.tensor(all_preds) > 0.5).float()
+    if scheduler_type == "cosine": num_cycles = 3
+    else: num_cycles = 1
 
-    results_df = pd.DataFrame({
-        'SubjectID': all_ids,
-        'y_true': all_trues,
-        'y_pred': all_preds,
-        'y_pred_binary': y_pred_binary.numpy(),
-        'correct': (torch.tensor(all_trues) == y_pred_binary).numpy(),
-        'error_type': ['Correct' if (torch.tensor(all_trues)[i] == y_pred_binary[i]) 
-                    else ('False Positive' if (torch.tensor(all_trues)[i] == 0 and y_pred_binary[i] == 1)
-                    else 'False Negative') for i in range(len(all_trues))],
-        'confidence': [abs(pred - 0.5) for pred in all_preds]
-    })
-    # Sort by errors first, then by confidence (errors with low confidence first)
-    results_df = results_df.sort_values(['correct', 'confidence'], ascending=[True, False])
+    for cycle in range(num_cycles):
+        cycle_data = [fold_metrics[cycle] for fold_metrics in all_fold_metrics]
+        metrics_df = pd.DataFrame(cycle_data)
+        
+        # Compute summary
+        mean_metrics = metrics_df.mean()
+        std_metrics = metrics_df.std()
+        
+        summary_metrics = {}
+        for metric in metrics_df.columns:
+            summary_metrics[metric] = {
+                "mean": mean_metrics[metric].item(),
+                "std": std_metrics[metric].item()
+            }
+        
+        metrics_path = os.path.join(OUTPUT_DIR, f'metrics_cycle{cycle}.json')
+        with open(metrics_path, 'w') as f:
+            json.dump(summary_metrics, f, indent=4)
+        
+        print(f"Saved aggregated metrics for cycle {cycle} to {metrics_path}")
+        
+        mean_metrics_dict = {}
+        for metric, values in summary_metrics.items():
+            mean_metrics_dict[f'{metric}'] = round(values['mean'], 3)
+        
+        metadata = {
+            'task': task,
+            'model_type]' : model_type,
+            'scheduler' : scheduler_type,
+            'init_lr' : lr,
+            'aug' : aug,
+            'cycle': cycle,
+            'seed' : SEED
+        }
+        full_row = {**metadata, **mean_metrics_dict}
+        summary_row = pd.DataFrame([full_row])
+        summary_row.to_csv(csv_file, mode='a', index=False, header=False)
 
-    # Convert predictions and true labels to tensors
-    y_preds = torch.tensor(all_preds, dtype=torch.float32, device=DEVICE)
-    y_trues = torch.tensor(all_trues, dtype=torch.float32, device=DEVICE)
-
-    # Compute final average BCELoss
-    bce_loss_fn = nn.BCELoss()
-    avg_loss = bce_loss_fn(y_preds, y_trues).item()
-
-    # Create error summary
-    error_summary = results_df['error_type'].value_counts().to_dict()
-
-    # Final evaluation metrics with error analysis
-    metrics = {
-        'loss': avg_loss,
-        'basicacc': basic_accuracy(y_trues, y_preds).item(),
-        'balancedacc': balanced_accuracy(y_trues, y_preds).item(),
-        'aucpr': average_precision_score(y_trues.cpu().numpy(), y_preds.cpu().detach().numpy()),
-        'auroc': roc_auc_score(y_trues.cpu().numpy(), y_preds.cpu().detach().numpy()),
-        'tpr': true_positive_rate(y_trues, y_preds).item(),
-        'fpr': false_positive_rate(y_trues, y_preds).item(),
-        'fdr': false_discovery_rate(y_trues, y_preds).item(),
-        'error_breakdown': error_summary,
-        'num_false_positives': error_summary.get('False Positive', 0),
-        'num_false_negatives': error_summary.get('False Negative', 0),
-        'total_errors': error_summary.get('False Positive', 0) + error_summary.get('False Negative', 0)
-    }
-
-    # Save metrics as JSON
-    metrics_path = os.path.join(OUTPUT_DIR, 'metrics.json')
-    with open(metrics_path, 'w') as f:
-        json.dump(metrics, f, indent=4)
-
-    # Save detailed results as CSV
-    results_path = os.path.join(OUTPUT_DIR, 'detailed_results.csv')
-    results_df.to_csv(results_path, index=True, index_label='original_index')
-
-    # Print error analysis summary
-    print(f"\nError Analysis:")
-    print(f"Total Correct: {error_summary.get('Correct', 0)}")
-    print(f"False Positives: {metrics['num_false_positives']}")
-    print(f"False Negatives: {metrics['num_false_negatives']}")
-    print(f"Total Errors: {metrics['total_errors']}")
-
-    print(f"\nWorst predictions (errors with lowest confidence):")
-    error_cases = results_df[results_df['correct'] == False]
-    if len(error_cases) > 0:
-        print(error_cases[['SubjectID', 'y_true', 'y_pred', 'error_type', 'confidence']].head(10))
-    else:
-        print("No errors found!")
-
-    return metrics, results_df
 
 
 ds = MeningiomaDataset(
@@ -332,8 +447,8 @@ ds = MeningiomaDataset(
     pulse_sequences=['t1_post', 'flair'],
     seg_rois=[22],
     transforms=transforms.Compose([
-        CenterOnTumor(cube_size=96, margin=5, pad_size=60),
-        Normalize2(mean=[0], std=[1])]))
+        Normalize2(mean=[0], std=[1]),
+        ]))
 
 ds.precache()
 

@@ -293,16 +293,18 @@ class CalabreseModelEncoder(nn.Module):
             num_filters = int(num_filters*2)
 
 
+        self.projector = nn.ModuleList()
+        self.projector.append(nn.Flatten())
+        size = int(0.5*num_filters*(original_shape/(2**len(layer_layout)))**3)
+        self.projector.append(nn.Linear(int(0.5*num_filters*(original_shape/(2**len(layer_layout)))**3), dense_features))
+        
         self.classifier = nn.ModuleList()
         # flatten and have final dense layer
-        self.classifier.append(nn.Flatten())
-        # Calculate the number of input features for the linear layer
-        size = int(0.5*num_filters*(original_shape/(2**len(layer_layout)))**3)
-        
-        self.classifier.append(nn.Linear(int(0.5*num_filters*(original_shape/(2**len(layer_layout)))**3), dense_features))
+
         self.classifier.append(nn.LeakyReLU())
         self.classifier.append(nn.Linear(dense_features, output_features))
-        self.classifier.append(nn.Sigmoid())
+        if activation is not None:
+            self.classifier.append(nn.Sigmoid())
 
         '''
         self.decoder = nn.ModuleList()
@@ -358,9 +360,19 @@ class CalabreseModelEncoder(nn.Module):
                 x = layer(x)    
 
         return x
+    
+    def forward_projector(self, x):
+
+        x = self.forward_encoder(x)
+        for i, layer in enumerate(self.projector):
+            x=layer(x)
+
+        return x
+    
 
     def forward_autoencoder(self, x):
-        x= self.forward_encoder(x)
+
+        x= self.forward_projector(x)
 
         
         for i, layer in enumerate(self.decoder):
@@ -372,8 +384,9 @@ class CalabreseModelEncoder(nn.Module):
             
         return x
     
+    '''
     def forward_pyrad_1layer(self, x):
-        z = self.forward_encoder(x)
+        z = self.forward_projector(x)
         for layer in self.mlp_1_layer:
             z = layer(z)
         return z
@@ -384,8 +397,11 @@ class CalabreseModelEncoder(nn.Module):
             z = layer(z)
         return z
 
+    '''
+
     def forward(self, x):
-        z = self.forward_encoder(x)
+
+        z = self.forward_projector(x)
         for layer in self.classifier:
             z = layer(z)
         return z

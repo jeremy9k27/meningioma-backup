@@ -70,7 +70,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # Dataset and Dataloaders
 ds = UnlabeledScansDataset(
     root_dir= 'BraTS-MEN-Train', 
-    size = 155,
+    size = 240,
     transforms=transforms.Compose([
         CenterOnTumor(cube_size=96, margin=5, pad_size=60),
         Normalize2(mean=[0], std=[1])]))

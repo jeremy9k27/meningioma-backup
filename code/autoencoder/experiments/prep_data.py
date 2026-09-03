@@ -225,7 +225,7 @@ class UnlabeledScansDataset(Dataset):
 
                 # Apply cubification and transforms
                 sample = self.cubify(sample)
-                print(sample['mris']['t2f'].shape)
+                #print(sample['mris']['t2f'].shape)
                 if self.transforms:
                     sample = self.transforms(sample)
 

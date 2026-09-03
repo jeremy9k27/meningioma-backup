@@ -1,4 +1,5 @@
 import os
+
 if os.getcwd().endswith('meningioma'): os.chdir('code')
 if not os.getcwd().endswith('code'): os.chdir('..')
 print("prep_data:", os.getcwd())
@@ -379,6 +380,7 @@ def create_dataloaders(ds, bs=10, train_prop=0.8, independent_test_set=True, see
     returning them in a dictionary. 
     """
     np.random.seed(seed)
+    torch.manual_seed(seed) 
     subs_by_class = ds.get_subjects_by_class()
 
     if independent_test_set:

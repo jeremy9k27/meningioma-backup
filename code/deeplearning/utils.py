@@ -152,3 +152,42 @@ def find_max_cancerous_slice(seg, axis=0):
     """
     axes_to_sum_over = tuple(set(np.arange(seg.ndim)) - {axis})
     return np.argmax(np.sum(seg, axis=axes_to_sum_over))
+
+class EarlyStopper:
+    def __init__(self, patience=15, min_delta=0.001):
+        """
+        Early stopping checker
+        
+        Args:
+            patience: Number of epochs to wait without improvement
+            min_delta: Minimum change to qualify as improvement
+        """
+        self.patience = patience
+        self.min_delta = min_delta
+        self.best_loss = float('inf')
+        self.epochs_without_improvement = 0
+        
+    def should_stop(self, val_loss):
+        """
+        Check if training should stop
+        
+        Args:
+            val_loss: Current validation loss
+            
+        Returns:
+            bool: True if training should stop
+        """
+        if val_loss < self.best_loss - self.min_delta:
+            # Improvement found
+            self.best_loss = val_loss
+            self.epochs_without_improvement = 0
+            return False
+        else:
+            # No improvement
+            self.epochs_without_improvement += 1
+            return self.epochs_without_improvement >= self.patience
+    
+    def reset(self):
+        """Reset the early stopper"""
+        self.best_loss = float('inf')
+        self.epochs_without_improvement = 0

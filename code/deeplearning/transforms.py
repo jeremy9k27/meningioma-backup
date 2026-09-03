@@ -1,6 +1,9 @@
 import torch
-from torch.nn.functional import pad, interpolate
+from torch.nn.functional import pad, interpolate, affine_grid, grid_sample
 from torchvision import transforms
+import math
+import nibabel as nib
+import numpy as np
 
 class Normalize(object):
     """
@@ -175,39 +178,230 @@ class CenterOnTumor(object):
 
         return sample
 
+class BatchedCenterOnTumor:
+    def __init__(self, center_on_tumor):
+        self.center_on_tumor = center_on_tumor
 
-import torchvision.transforms.functional as F
+    def __call__(self, batched_sample):
+        
+        augmented_samples = []
+        batch_size = list(batched_sample["mris"].values())[0].shape[0]
+        
+        # Process each sample in the batched sample
+        for i in range(batch_size):
+            single_sample = {
+                "mris": {modality: mri_tensor[i] for modality, mri_tensor in batched_sample["mris"].items()},
+                "segs": {seg_key: seg_tensor[i] for seg_key, seg_tensor in batched_sample["segs"].items()}
+            }
+            
+            # Apply center_on_tumor to single sample
+            augmented_sample = self.center_on_tumor(single_sample)            
+            augmented_samples.append(augmented_sample)
+        
+        # Rebatch: stack all samples back together
+        rebatched = {
+            "mris": {
+                modality: torch.stack([sample["mris"][modality] for sample in augmented_samples], dim=0)
+                for modality in augmented_samples[0]["mris"].keys()
+            },
+            "segs": {
+                seg_key: torch.stack([sample["segs"][seg_key] for sample in augmented_samples], dim=0)
+                for seg_key in augmented_samples[0]["segs"].keys()
+            },
+            "label" : batched_sample['label'],
+            "sub_id" : batched_sample['sub_id']
+        }
+        return rebatched
 
-def rotate_3d(tensor, angle):
-    # tensor shape: [channels, depth, height, width]
-    # Rotate each depth slice individually
-    rotated_slices = []
-    for d in range(tensor.shape[1]):  # Loop through depth dimension
-        slice_2d = tensor[:, d, :, :]  # [channels, height, width]
-        rotated_slice = F.rotate(slice_2d, angle)
-        rotated_slices.append(rotated_slice)
-    return torch.stack(rotated_slices, dim=1)
-    
+
+def rotate_3d(volume, mode, angle_x=0, angle_y=0, angle_z=0):
+
+    device = volume.device
+    dtype = volume.dtype
+
+    # Start with identity matrix
+    R = torch.eye(3, device=device, dtype=dtype)
+
+    batch_size = volume.shape[0]
+
+    # Apply X rotation
+    if angle_x != 0:
+        angle = math.radians(angle_x)
+        cos_a = math.cos(angle)
+        sin_a = math.sin(angle)
+        R_x = torch.tensor([
+            [1,     0,      0],
+            [0, cos_a, -sin_a],
+            [0, sin_a,  cos_a]
+        ], device=device, dtype=dtype)
+        R = R @ R_x
+
+    # Apply Y rotation
+    if angle_y != 0:
+        angle = math.radians(angle_y)
+        cos_a = math.cos(angle)
+        sin_a = math.sin(angle)
+        R_y = torch.tensor([
+            [ cos_a, 0, sin_a],
+            [ 0,     1,    0 ],
+            [-sin_a, 0, cos_a]
+        ], device=device, dtype=dtype)
+        R = R @ R_y
+
+    # Apply Z rotation
+    if angle_z != 0:
+        angle = math.radians(angle_z)
+        cos_a = math.cos(angle)
+        sin_a = math.sin(angle)
+        R_z = torch.tensor([
+            [cos_a, -sin_a, 0],
+            [sin_a,  cos_a, 0],
+            [0,         0,  1]
+        ], device=device, dtype=dtype)
+        R = R @ R_z
+
+    # Build affine matrix
+    affine = torch.zeros((batch_size, 3, 4), device=device, dtype=dtype)
+    affine[:, :, :3] = R
+
+    grid = torch.nn.functional.affine_grid(affine, size=volume.shape, align_corners=False)
+    rotated = torch.nn.functional.grid_sample(volume, grid, mode=mode, padding_mode="border", align_corners=False)
+    return rotated
+
+
 class DetRotation3D:
     '''
     this gets called in the training loop, not to be used as part of transform pipeline
+    to be called on a batch
     '''
-    def __init__(self, degrees=15):
-        self.degrees = degrees
+    def __init__(self):
+        pass
     
     def __call__(self, X_batch, subject_ids, epoch):
-
+        
         augmented_batch = []
         for i, subject_id in enumerate(subject_ids):
             
             sample = X_batch[i]  # Shape: [channels, depth, height, width]
+
+            # Get original cube size
+            original_size = sample.shape[1]  # assuming cube: depth=height=width
             
-            # Create deterministic seed
-            seed = hash(f"{subject_id}_{epoch}") % (2**32)
-            torch.manual_seed(seed)
+            # Calculate padding needed for 45 degree rotation
+            new_size = math.ceil(original_size * math.sqrt(2))
+            pad_total = new_size - original_size
+            pad_per_side = pad_total // 2
+            pad_remainder = pad_total % 2
             
-            angle = torch.randint(-self.degrees, self.degrees, (1,)).item()
-            rotated_sample = rotate_3d(sample, angle)  # You'll need this function
+            # Get min value for this sample
+            min_val = sample.min()
+            
+            # Pad equally on all sides (depth, height, width)
+            # pad format: (left, right, top, bottom, front, back)
+            padded_sample = torch.nn.functional.pad(
+                sample, 
+                (pad_per_side, pad_per_side + pad_remainder,  # width
+                 pad_per_side, pad_per_side + pad_remainder,  # height
+                 pad_per_side, pad_per_side + pad_remainder), # depth
+                value=min_val
+            )
+            
+            # Randomly choose plane (0=XY/Z-axis, 1=XZ/Y-axis, 2=YZ/X-axis) and degree
+            axis = ["z", "y", "x"][torch.randint(0, 3, (1,)).item()]
+            angle_deg = [-45,0,45][torch.randint(0, 3, (1,)).item()]
+            
+            # Apply rotation
+            if angle_deg != 0:
+                rotated_sample = rotate_3d(padded_sample, angle_deg=angle_deg, axis=axis)
+                tensor_np = rotated_sample.squeeze().cpu().numpy()[0]
+                print(tensor_np.shape)
+
+                # Save as NIfTI
+                nifti_img = nib.Nifti1Image(tensor_np, affine=np.eye(4))
+                nib.save(nifti_img, f"rotated{angle_deg}{axis}.nii.gz")
+                print("hi")
             augmented_batch.append(rotated_sample)
+
+        return torch.cat(augmented_batch, dim=0)
+
+class CalabreseRotation3D:
+    '''
+    random rotation in each axis from 0-90
+    to be called on a dictionary-like sample from __getitem__
+    '''
+    def __init__(self, device='cuda' if torch.cuda.is_available() else 'cpu'):
+        self.device = device
+    
+    def __call__(self, sample, angle_x=None, angle_y=None, angle_z=None):
         
-        return torch.stack(augmented_batch)
+        # Generate rotation angles
+        angles = torch.tensor([0, 45, 90])
+
+        if angle_x is None:
+            angle_x = angles[torch.randint(0, 3, (1,))].item()
+
+        if angle_y is None:
+            angle_y = angles[torch.randint(0, 3, (1,))].item()
+
+        if angle_z is None:
+            angle_z = angles[torch.randint(0, 3, (1,))].item()
+        
+        # Rotate MRIs with bilinear
+        mri_list = [mri_tensor.unsqueeze(1) for mri_tensor in sample["mris"].values()]
+        mris_combined = torch.cat(mri_list, dim=1)
+        mris_on_device = mris_combined.to(self.device)
+        rotated_mris = rotate_3d(mris_on_device, angle_x=angle_x, angle_y=angle_y, angle_z=angle_z, mode='bilinear')
+        rotated_mris_cpu = rotated_mris.cpu()
+        
+        # Rotate segmentations with nearest
+        seg_combined = sample["segs"][22].unsqueeze(1).float()
+        seg_on_device = seg_combined.to(self.device)
+        rotated_seg = rotate_3d(seg_on_device, angle_x=angle_x, angle_y=angle_y, angle_z=angle_z, mode='nearest')
+        rotated_seg_cpu = rotated_seg.cpu()
+        
+        # Build output
+        augmented_sample = {"mris": {}, "segs": {}}
+
+        modality_names = list(sample["mris"].keys())
+        for i, modality_name in enumerate(modality_names):
+            augmented_sample["mris"][modality_name] = rotated_mris_cpu[:, i]
+
+        augmented_sample["segs"][22] = rotated_seg_cpu[:, 0]
+        augmented_sample['label'] = sample['label']
+        augmented_sample['sub_id'] = sample['sub_id']
+    
+        
+        return augmented_sample
+
+
+class WorstCasePad:
+    '''
+    called on individual samples
+    '''
+    def __call__(self, sample):
+        for k in sample["mris"]:
+            sample["mris"][k] = self.pad_volume(sample["mris"][k])
+
+        sample["segs"][22] = self.pad_volume(sample["segs"][22])
+        return sample
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}"
+
+    def pad_volume(self, volume):
+        original_size = volume.shape[1]
+
+        new_size = math.ceil(original_size * math.sqrt(2))
+        pad_total = new_size - original_size
+        pad_per_side = pad_total // 2
+        pad_remainder = pad_total % 2
+
+        min_val = volume.min()
+
+        return torch.nn.functional.pad(
+            volume,
+            (pad_per_side, pad_per_side + pad_remainder,
+             pad_per_side, pad_per_side + pad_remainder,
+             pad_per_side, pad_per_side + pad_remainder),
+            value=min_val
+        )
